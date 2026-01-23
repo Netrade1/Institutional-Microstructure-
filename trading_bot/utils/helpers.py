@@ -20,6 +20,8 @@ def save_results(results: Dict[str, Any], filepath: str):
 
 def setup_logging(level=logging.INFO):
     """Setup logging configuration"""
+    import os
+    os.makedirs('logs', exist_ok=True)
     logging.basicConfig(
         level=level,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',

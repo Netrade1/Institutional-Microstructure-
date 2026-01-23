@@ -7,7 +7,6 @@ from typing import Dict, List, Optional, Tuple
 from enum import Enum
 import logging
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 

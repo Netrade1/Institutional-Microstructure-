@@ -16,7 +16,6 @@ from typing import Tuple, Optional
 import joblib
 import logging
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
