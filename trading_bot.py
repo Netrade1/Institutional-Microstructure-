@@ -112,9 +112,11 @@ class MLTradingStrategy:
     def _lstm_predict(self, features: pd.DataFrame) -> np.ndarray:
         """LSTM-based temporal prediction"""
         # Simplified LSTM prediction logic
+        # Normalize momentum by typical price range (100 = ~100% price move)
+        MOMENTUM_NORMALIZER = 100.0
         momentum = features['Momentum'].values
         rsi = features['RSI'].values
-        signal = np.tanh(momentum / 100) * (1 - abs(rsi - 50) / 50)
+        signal = np.tanh(momentum / MOMENTUM_NORMALIZER) * (1 - abs(rsi - 50) / 50)
         return signal
     
     def _random_forest_predict(self, features: pd.DataFrame) -> np.ndarray:
@@ -128,10 +130,12 @@ class MLTradingStrategy:
     def _xgboost_predict(self, features: pd.DataFrame) -> np.ndarray:
         """XGBoost prediction"""
         # Simplified XGBoost prediction logic
+        # Scale factor to amplify price deviation from moving average
+        PRICE_DEVIATION_SCALE = 10.0
         close = features['close'].values
         sma_20 = features['SMA_20'].values
         signal = (close - sma_20) / sma_20
-        return np.tanh(signal * 10)
+        return np.tanh(signal * PRICE_DEVIATION_SCALE)
 
 
 class RiskManager:
@@ -151,7 +155,8 @@ class RiskManager:
                                 current_price: float, volatility: float) -> int:
         """Calculate optimal position size based on Kelly Criterion and risk parameters"""
         # Kelly Criterion adapted for trading
-        win_rate = 0.55  # Historical win rate
+        # Default win rate assumption - should be updated with actual performance
+        win_rate = self.config.get('assumed_win_rate', 0.55)
         avg_win = self.take_profit_pct
         avg_loss = self.stop_loss_pct
         

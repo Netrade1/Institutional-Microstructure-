@@ -9,7 +9,8 @@
         "max_position_size": 0.1,
         "max_portfolio_risk": 0.02,
         "stop_loss_pct": 0.02,
-        "take_profit_pct": 0.05
+        "take_profit_pct": 0.05,
+        "assumed_win_rate": 0.55
     },
     "trading": {
         "commission": 0.001,
