@@ -58,7 +58,12 @@ class TechnicalIndicators:
         gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
         loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
         
-        rs = gain / loss
+        # Handle division by zero
+        with np.errstate(divide='ignore', invalid='ignore'):
+            rs = gain / loss
+            rs = rs.replace([np.inf, -np.inf], 100)  # If loss is 0, RSI = 100
+            rs = rs.fillna(0)
+        
         rsi = 100 - (100 / (1 + rs))
         
         return rsi
@@ -109,10 +114,10 @@ class TechnicalIndicators:
             Tuple of (Upper band, Middle band, Lower band)
         """
         middle_band = prices.rolling(window=period).mean()
-        std = prices.rolling(window=period).std()
+        standard_deviation = prices.rolling(window=period).std()
         
-        upper_band = middle_band + (std * std_dev)
-        lower_band = middle_band - (std * std_dev)
+        upper_band = middle_band + (standard_deviation * std_dev)
+        lower_band = middle_band - (standard_deviation * std_dev)
         
         return upper_band, middle_band, lower_band
     
@@ -170,7 +175,12 @@ class TechnicalIndicators:
         lowest_low = low.rolling(window=period).min()
         highest_high = high.rolling(window=period).max()
         
-        k_percent = 100 * ((close - lowest_low) / (highest_high - lowest_low))
+        # Handle division by zero when price range is zero
+        price_range = highest_high - lowest_low
+        with np.errstate(divide='ignore', invalid='ignore'):
+            k_percent = 100 * ((close - lowest_low) / price_range)
+            k_percent = k_percent.replace([np.inf, -np.inf], np.nan)
+        
         k_smooth = k_percent.rolling(window=smooth_k).mean()
         d_smooth = k_smooth.rolling(window=smooth_d).mean()
         
@@ -207,11 +217,17 @@ class TechnicalIndicators:
         
         # Calculate smoothed +DI and -DI
         atr_period = tr.rolling(window=period).sum()
-        plus_di = 100 * (plus_dm.rolling(window=period).sum() / atr_period)
-        minus_di = 100 * (minus_dm.rolling(window=period).sum() / atr_period)
         
-        # Calculate DX and ADX
-        dx = 100 * (plus_di - minus_di).abs() / (plus_di + minus_di)
+        # Handle division by zero
+        with np.errstate(divide='ignore', invalid='ignore'):
+            plus_di = 100 * (plus_dm.rolling(window=period).sum() / atr_period)
+            minus_di = 100 * (minus_dm.rolling(window=period).sum() / atr_period)
+            
+            # Calculate DX
+            di_sum = plus_di + minus_di
+            dx = 100 * (plus_di - minus_di).abs() / di_sum
+            dx = dx.replace([np.inf, -np.inf], np.nan)
+        
         adx = dx.rolling(window=period).mean()
         
         return adx
@@ -282,7 +298,10 @@ class TechnicalIndicators:
             lambda x: np.abs(x - x.mean()).mean()
         )
         
-        cci = (typical_price - sma) / (0.015 * mad)
+        # Handle division by zero when MAD is zero
+        with np.errstate(divide='ignore', invalid='ignore'):
+            cci = (typical_price - sma) / (0.015 * mad)
+            cci = cci.replace([np.inf, -np.inf], np.nan)
         
         return cci
     
@@ -312,4 +331,9 @@ class TechnicalIndicators:
         Returns:
             Series of ROC values (percentage)
         """
-        return ((prices - prices.shift(period)) / prices.shift(period)) * 100
+        # Handle division by zero
+        with np.errstate(divide='ignore', invalid='ignore'):
+            roc = ((prices - prices.shift(period)) / prices.shift(period)) * 100
+            roc = roc.replace([np.inf, -np.inf], np.nan)
+        
+        return roc

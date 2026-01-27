@@ -162,7 +162,12 @@ class OrderManager:
         """
         # Convert string inputs to enums
         side_enum = OrderSide.BUY if side.lower() == 'buy' else OrderSide.SELL
-        type_enum = OrderType[order_type.upper()]
+        
+        try:
+            type_enum = OrderType[order_type.upper()]
+        except KeyError:
+            valid_types = [t.value for t in OrderType]
+            raise ValueError(f"Invalid order type '{order_type}'. Valid types: {valid_types}")
         
         order = Order(
             symbol=symbol,
@@ -194,7 +199,7 @@ class OrderManager:
             order.status = OrderStatus.SUBMITTED
             order.updated_at = datetime.now()
             return True
-        return False
+        raise ValueError(f"Order not found: {order_id}")
     
     def cancel_order(self, order_id: str) -> bool:
         """

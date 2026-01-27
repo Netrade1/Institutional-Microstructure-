@@ -167,12 +167,15 @@ class MicrostructureMetrics:
         """
         # Run regression: ΔP = λ * Q + ε
         if len(price_changes) == len(signed_volumes) and len(price_changes) > 1:
-            coef = np.corrcoef(signed_volumes, price_changes)[0, 1]
-            std_price = np.std(price_changes)
             std_volume = np.std(signed_volumes)
             
-            if std_volume > 0:
-                return coef * (std_price / std_volume)
+            if std_volume <= 1e-8:
+                return 0.0
+            
+            coef = np.corrcoef(signed_volumes, price_changes)[0, 1]
+            std_price = np.std(price_changes)
+            
+            return coef * (std_price / std_volume)
         
         return 0.0
     
@@ -250,7 +253,7 @@ class MicrostructureMetrics:
             'bid_depth': bid_depth,
             'ask_depth': ask_depth,
             'depth_imbalance': (bid_depth - ask_depth) / total_depth if total_depth > 0 else 0.0,
-            'depth_ratio': bid_depth / ask_depth if ask_depth > 0 else float('inf'),
+            'depth_ratio': bid_depth / ask_depth if ask_depth > 1e-8 else float('inf'),
             'dollar_depth': total_depth * mid_price
         }
     
@@ -293,9 +296,9 @@ class MicrostructureMetrics:
         # Simplified information share based on variance contribution
         total_variance = returns_series.var()
         
-        if total_variance > 0:
-            # Calculate how much of the total variance is explained
-            explained_variance = returns_series.abs().mean()
-            return explained_variance / np.sqrt(total_variance)
+        if total_variance <= 1e-8:
+            return 0.0
         
-        return 0.0
+        # Calculate how much of the total variance is explained
+        explained_variance = returns_series.abs().mean()
+        return explained_variance / np.sqrt(total_variance)
