@@ -13,6 +13,7 @@ yfinance>=0.2.28
 # API and Web Framework
 flask>=3.0.0
 flask-cors>=4.0.0
+streamlit>=1.28.0
 requests>=2.31.0
 
 # Visualization
