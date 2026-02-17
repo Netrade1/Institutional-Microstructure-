@@ -17,6 +17,9 @@ from trading_bot.bot import AITradingBot
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Constants
+DEFAULT_INITIAL_CAPITAL = 100000
+
 # Page configuration
 st.set_page_config(
     page_title="AI Trading Bot Dashboard",
@@ -81,12 +84,6 @@ st.markdown("""
             padding-left: 1rem;
             padding-right: 1rem;
         }
-    }
-    
-    /* Theme-specific styling */
-    [data-theme="dark"] {
-        --background-color: #1f2937;
-        --text-color: #f9fafb;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -361,7 +358,7 @@ def render_equity_curve():
     if portfolio.trade_history:
         # Create equity curve data
         equity_data = []
-        running_value = st.session_state.config.get('trading', {}).get('initial_capital', 100000)
+        running_value = st.session_state.config.get('trading', {}).get('initial_capital', DEFAULT_INITIAL_CAPITAL)
         
         for trade in portfolio.trade_history:
             if 'timestamp' in trade and 'profit_loss' in trade:
@@ -388,7 +385,7 @@ def render_equity_curve():
             ))
             
             # Add initial capital line
-            initial_capital = st.session_state.config.get('trading', {}).get('initial_capital', 100000)
+            initial_capital = st.session_state.config.get('trading', {}).get('initial_capital', DEFAULT_INITIAL_CAPITAL)
             fig.add_hline(
                 y=initial_capital,
                 line_dash="dash",
@@ -486,7 +483,7 @@ def render_configuration():
             
             initial_capital = st.number_input(
                 "Initial Capital ($)",
-                value=config.get('trading', {}).get('initial_capital', 100000),
+                value=config.get('trading', {}).get('initial_capital', DEFAULT_INITIAL_CAPITAL),
                 min_value=1000,
                 step=1000
             )

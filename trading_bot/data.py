@@ -71,16 +71,7 @@ class MarketDataFetcher:
             ticker = yf.Ticker(yf_symbol)
             df = ticker.history(start=start_date, end=end_date, interval=self._convert_interval())
             
-            # Standardize column names
-            df = df.rename(columns={
-                'Open': 'Open',
-                'High': 'High',
-                'Low': 'Low',
-                'Close': 'Close',
-                'Volume': 'Volume'
-            })
-            
-            # Select only OHLCV columns
+            # Select only OHLCV columns (yfinance already provides standardized names)
             df = df[['Open', 'High', 'Low', 'Close', 'Volume']]
             
             return df
