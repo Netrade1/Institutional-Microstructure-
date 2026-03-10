@@ -6,19 +6,29 @@ A state-of-the-art cutting-edge machine learning augmented intelligence autonomo
 
 ## 🚀 **WANT TO DEPLOY NOW?** 
 
-### Not sure what to do? Here's how to get started:
+### 📱 **ON YOUR ANDROID TABLET RIGHT NOW?**
 
-#### 📱 Deploy to Cloud (Access from Phone/Tablet)
-➡️ **[READ: DEPLOY_NOW.md](DEPLOY_NOW.md)** - 3 simple steps to deploy!
+**➡️ [START HERE: START_HERE_TABLET.md](START_HERE_TABLET.md)** ⬅️  
+*Step-by-step visual guide for Samsung Galaxy S10 Ultra and all Android tablets!*
 
-#### 💻 Run Locally (Test on Your Computer)
+---
+
+### Choose Your Path:
+
+#### 📱 Android Tablet Users
+1. **[START_HERE_TABLET.md](START_HERE_TABLET.md)** - Visual step-by-step guide (START HERE!)
+2. **[ANDROID_TABLET_GUIDE.md](ANDROID_TABLET_GUIDE.md)** - Complete tablet guide
+
+#### 💻 Desktop/Laptop Users
+1. **[DEPLOY_NOW.md](DEPLOY_NOW.md)** - Simple 3-step deployment
+2. **[STREAMLIT_DEPLOYMENT.md](STREAMLIT_DEPLOYMENT.md)** - Detailed guide
+
+#### 🏃 Just Want to Test Locally?
 ```bash
 pip install streamlit
 streamlit run app.py
 ```
 Open: `http://localhost:8501`
-
-**Choose one option above to get started!** ⬆️
 
 ---
 
