@@ -2,6 +2,26 @@
 
 A state-of-the-art cutting-edge machine learning augmented intelligence autonomous AI Trading Bot Platform System and Dashboard.
 
+---
+
+## 🚀 **WANT TO DEPLOY NOW?** 
+
+### Not sure what to do? Here's how to get started:
+
+#### 📱 Deploy to Cloud (Access from Phone/Tablet)
+➡️ **[READ: DEPLOY_NOW.md](DEPLOY_NOW.md)** - 3 simple steps to deploy!
+
+#### 💻 Run Locally (Test on Your Computer)
+```bash
+pip install streamlit
+streamlit run app.py
+```
+Open: `http://localhost:8501`
+
+**Choose one option above to get started!** ⬆️
+
+---
+
 ## 🌟 Features
 
 ### Advanced Machine Learning
