@@ -788,14 +788,11 @@ class _PaperPosition:
                 # Opening or adding to short
                 if self.quantity == 0:
                     self.avg_cost = fill_price
+                    self.quantity -= qty
                 else:
                     total_cost = self.avg_cost * abs(self.quantity) + fill_price * qty
                     self.quantity -= qty
                     self.avg_cost = total_cost / abs(self.quantity) if self.quantity != 0 else fill_price
-                    qty = 0
-                if qty > 0:
-                    self.quantity -= qty
-                    self.avg_cost = fill_price
         self.realized_pnl += realized
         return realized
 
@@ -1075,7 +1072,7 @@ class PaperBroker(BrokerAdapter):
                 "side": order.side,
                 "qty": qty,
                 "fill_price": fill_price,
-                "realized_pnl": realized if order.side == OrderSide.SELL.value else 0.0,
+                "realized_pnl": realized,
                 "report": to_jsonable(report),
             }
         )
