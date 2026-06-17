@@ -17,6 +17,7 @@ Run with:
 from __future__ import annotations
 
 import asyncio
+import math
 import time
 from collections import deque
 from threading import Thread
@@ -232,13 +233,13 @@ st.divider()
 st.subheader("📐 Technical Indicators")
 t1, t2, t3, t4, t5 = st.columns(5)
 with t1:
-    st.metric("RSI (14)", f"{features.rsi_14:.1f}" if features and not __import__('math').isnan(features.rsi_14) else "—")
+    st.metric("RSI (14)", f"{features.rsi_14:.1f}" if features and not math.isnan(features.rsi_14) else "—")
 with t2:
-    st.metric("ATR (14)", f"{features.atr_14:.4f}" if features and not __import__('math').isnan(features.atr_14) else "—")
+    st.metric("ATR (14)", f"{features.atr_14:.4f}" if features and not math.isnan(features.atr_14) else "—")
 with t3:
-    st.metric("MACD", f"{features.macd_line:.4f}" if features and not __import__('math').isnan(features.macd_line) else "—")
+    st.metric("MACD", f"{features.macd_line:.4f}" if features and not math.isnan(features.macd_line) else "—")
 with t4:
-    st.metric("BB Width", f"{features.bb_width:.4f}" if features and not __import__('math').isnan(features.bb_width) else "—")
+    st.metric("BB Width", f"{features.bb_width:.4f}" if features and not math.isnan(features.bb_width) else "—")
 with t5:
     st.metric("RVOL", f"{features.rvol:.2f}×" if features else "—")
 

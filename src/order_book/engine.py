@@ -25,6 +25,7 @@ All computed values feed directly into the Feature Engineering Layer.
 
 from __future__ import annotations
 
+import math
 import time
 from collections import deque
 from dataclasses import dataclass, field
@@ -510,7 +511,6 @@ class OrderBookEngine:
 
 def _is_nan(v: float) -> bool:
     try:
-        import math
         return math.isnan(v)
     except Exception:
         return False

@@ -1,5 +1,5 @@
 # Institutional Microstructure Intelligence System
-### Phase 1 — Research Prototype | Paper-Only | Compliance-Aware | Audit-Driven
+## Phase 1 — Research Prototype | Paper-Only | Compliance-Aware | Audit-Driven
 
 > **"Evidence first. Risk second. Execution last."**
 
