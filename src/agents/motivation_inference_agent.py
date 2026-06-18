@@ -116,7 +116,6 @@ class MotivationInferenceAgent:
                 engine = "deepseek"
             except Exception:
                 pass  # Silently fall back to rule-based
-
         return MotivationInferenceReport(
             symbol=state.symbol,
             timestamp_ns=state.timestamp_ns,
@@ -228,7 +227,13 @@ class MotivationInferenceAgent:
         and return the reasoning trace.  Never replaces compliance-cleared
         rule-based output — only enriches the reasoning narrative.
         """
-        import openai  # imported lazily to avoid hard dependency when not needed
+        try:
+            import openai  # imported lazily — requires 'openai' package when DEEPSEEK_API_KEY is set
+        except ImportError as exc:
+            raise ImportError(
+                "The 'openai' package is required for DeepSeek integration. "
+                "Install it with: pip install openai>=1.12.0"
+            ) from exc
 
         client = openai.OpenAI(
             api_key=DEEPSEEK_API_KEY,

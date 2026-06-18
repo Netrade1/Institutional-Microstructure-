@@ -393,19 +393,15 @@ class TestMotivationInferenceAgent:
         report = agent.analyse(state, features, arch)
         assert report.reasoning_trace != ""
 
-    def test_rule_based_when_no_api_key(self):
+    def test_rule_based_when_no_api_key(self, monkeypatch):
         """Without DEEPSEEK_API_KEY, engine must be rule_based."""
         import src.config as cfg
-        original = cfg.DEEPSEEK_API_KEY
-        cfg.DEEPSEEK_API_KEY = ""
-        try:
-            state, features, _ = _make_pipeline()
-            arch = self._make_archetype_report()
-            agent = MotivationInferenceAgent()
-            report = agent.analyse(state, features, arch)
-            assert report.engine_used == "rule_based"
-        finally:
-            cfg.DEEPSEEK_API_KEY = original
+        monkeypatch.setattr(cfg, "DEEPSEEK_API_KEY", "")
+        state, features, _ = _make_pipeline()
+        arch = self._make_archetype_report()
+        agent = MotivationInferenceAgent()
+        report = agent.analyse(state, features, arch)
+        assert report.engine_used == "rule_based"
 
 
 class TestDecisionParliamentPhase2A:
