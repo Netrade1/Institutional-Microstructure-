@@ -23,9 +23,12 @@ from __future__ import annotations
 from src.agents.compliance_agent import ComplianceAgent
 from src.agents.decision_parliament import DecisionParliament
 from src.agents.institutional_footprint import InstitutionalFootprintAgent
+from src.agents.ipo_microstructure_agent import IPOMicrostructureAgent
 from src.agents.market_dna_detector import MarketDNADetectorAgent
 from src.agents.models import DecisionParliamentResult
+from src.agents.motivation_inference_agent import MotivationInferenceAgent
 from src.agents.order_book_analyst import OrderBookAnalystAgent
+from src.agents.participant_archetype_agent import ParticipantArchetypeAgent
 from src.agents.risk_governor import RiskGovernorAgent
 from src.audit.ledger import AuditLedger
 from src.chatbot.interface import ChatbotInterface, ChatbotResponse
@@ -60,12 +63,20 @@ class Orchestrator:
         self._parliament = DecisionParliament()
         self._chatbot = ChatbotInterface()
         self._ledger = AuditLedger()
+        # Phase 2A agents
+        self._archetype_agent = ParticipantArchetypeAgent()
+        self._motivation_agent = MotivationInferenceAgent()
+        self._ipo_agent = IPOMicrostructureAgent()
 
         # ── Latest state cache (for dashboard reads) ──────────────────────────
         self.latest_health: FeedHealthReport | None = None
         self.latest_state: OrderBookState | None = None
         self.latest_features: FeatureVector | None = None
         self.latest_result: DecisionParliamentResult | None = None
+        # Phase 2A caches
+        self.latest_archetype = None
+        self.latest_motivation = None
+        self.latest_ipo = None
 
     # ── Public ────────────────────────────────────────────────────────────────
 
@@ -106,13 +117,22 @@ class Orchestrator:
         )
         compliance_report = self._compliance.check_output(self.symbol, pre_text)
 
-        # 9. Decision parliament
+        # 9. Phase 2A — WHO / WHY / IPO agents
+        archetype_report = self._archetype_agent.analyse(state, features)
+        motivation_report = self._motivation_agent.analyse(state, features, archetype_report)
+        ipo_report = self._ipo_agent.analyse(state, features)
+
+        # 10. Decision parliament (extended with Phase 2A reports)
         result = self._parliament.deliberate(
-            ob_report, dna_report, inst_report, risk_report, compliance_report
+            ob_report, dna_report, inst_report, risk_report, compliance_report,
+            archetype_report=archetype_report,
+            motivation_report=motivation_report,
+            ipo_report=ipo_report,
         )
 
-        # 10. Audit
+        # 11. Audit
         self._ledger.log_decision(result)
+        self._ledger.log_motivation(motivation_report)
         if self._tick % self._feature_log_every == 0:
             self._ledger.log_features(features)
 
@@ -121,6 +141,9 @@ class Orchestrator:
         self.latest_state = state
         self.latest_features = features
         self.latest_result = result
+        self.latest_archetype = archetype_report
+        self.latest_motivation = motivation_report
+        self.latest_ipo = ipo_report
 
         return result
 
@@ -149,6 +172,9 @@ class Orchestrator:
             inst_report=inst_report,
             risk_report=risk_report,
             parliament_result=result,
+            archetype_report=self.latest_archetype,
+            motivation_report=self.latest_motivation,
+            ipo_report=self.latest_ipo,
         )
 
         # Final compliance gate on the response text

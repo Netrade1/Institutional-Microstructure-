@@ -26,6 +26,14 @@ DEFAULT_SYMBOL: str = os.getenv("DEFAULT_SYMBOL", "AAPL")
 OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
 ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
 
+# ── DeepSeek (Phase 2A – Motivation Inference Engine) ─────────────────────────
+# DeepSeek-R1 is accessed via an OpenAI-compatible API.
+# Self-hosted local deployment is the preferred option for data sovereignty.
+# Leave DEEPSEEK_API_KEY blank to use the rule-based motivation engine only.
+DEEPSEEK_API_KEY: str = os.getenv("DEEPSEEK_API_KEY", "")
+DEEPSEEK_BASE_URL: str = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1")
+DEEPSEEK_MODEL: str = os.getenv("DEEPSEEK_MODEL", "deepseek-reasoner")
+
 # ── Storage ───────────────────────────────────────────────────────────────────
 DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///data/microstructure.db")
 REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
@@ -65,3 +73,8 @@ COMPLIANCE_LIMITATIONS_STATEMENT: str = (
     "All behavioral classifications are probabilistic estimates based on "
     "observable, legally accessible market data only."
 )
+
+# ── IPO configuration (Phase 2A) ─────────────────────────────────────────────
+# Symbols in this list receive additional IPO microstructure analysis.
+# Update with the active IPO ticker(s) you are monitoring.
+IPO_SYMBOLS: list[str] = [s.strip().upper() for s in os.getenv("IPO_SYMBOLS", "SPCX").split(",") if s.strip()]

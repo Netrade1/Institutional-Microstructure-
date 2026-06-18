@@ -16,12 +16,17 @@ Disposition hierarchy:
 
 from __future__ import annotations
 
+from typing import Optional
+
 from src.agents.models import (
     ComplianceReport,
     DecisionParliamentResult,
     InstitutionalFootprintReport,
+    IPOMicrostructureReport,
     MarketDNAReport,
+    MotivationInferenceReport,
     OrderBookAnalystReport,
+    ParticipantArchetypeReport,
     RiskGovernorReport,
 )
 from src.config import COMPLIANCE_LIMITATIONS_STATEMENT
@@ -39,6 +44,10 @@ class DecisionParliament:
         inst_report: InstitutionalFootprintReport,
         risk_report: RiskGovernorReport,
         compliance_report: ComplianceReport,
+        # Phase 2A – optional extended reports
+        archetype_report: Optional[ParticipantArchetypeReport] = None,
+        motivation_report: Optional[MotivationInferenceReport] = None,
+        ipo_report: Optional[IPOMicrostructureReport] = None,
     ) -> DecisionParliamentResult:
 
         symbol = ob_report.symbol
@@ -50,6 +59,7 @@ class DecisionParliament:
                 symbol, ts, "data_insufficient",
                 "Data quality check failed. Feed reliability is insufficient for analysis.",
                 ob_report, dna_report, inst_report, risk_report, compliance_report,
+                archetype_report, motivation_report, ipo_report,
             )
 
         # ── Gate 2: Compliance block ──────────────────────────────────────────
@@ -58,6 +68,7 @@ class DecisionParliament:
                 symbol, ts, "blocked",
                 f"Output blocked by Compliance Agent: {'; '.join(compliance_report.violations)}",
                 ob_report, dna_report, inst_report, risk_report, compliance_report,
+                archetype_report, motivation_report, ipo_report,
             )
 
         # ── Gate 3: Risk veto ─────────────────────────────────────────────────
@@ -66,6 +77,7 @@ class DecisionParliament:
                 symbol, ts, "risk_veto",
                 f"Risk Governor veto: {'; '.join(risk_report.veto_reasons)}",
                 ob_report, dna_report, inst_report, risk_report, compliance_report,
+                archetype_report, motivation_report, ipo_report,
             )
 
         # ── Compute aggregate conviction ──────────────────────────────────────
@@ -87,6 +99,15 @@ class DecisionParliament:
             bearish_votes += 1
             total_confidence += inst_report.probability
 
+        # Phase 2A: archetype vote
+        if archetype_report:
+            if archetype_report.archetype in {"institutional_accumulator", "informed_flow_proxy"}:
+                bullish_votes += 1
+                total_confidence += archetype_report.probability
+            elif archetype_report.archetype in {"strategic_seller", "momentum_ignitor"}:
+                bearish_votes += 1
+                total_confidence += archetype_report.probability
+
         regime_supports_action = dna_report.regime in {
             "accumulation", "breakout", "compression", "distribution"
         }
@@ -102,6 +123,7 @@ class DecisionParliament:
                 "Conflicting high-confidence signals from Order Book Analyst and "
                 "Institutional Footprint Agent. Human review recommended.",
                 ob_report, dna_report, inst_report, risk_report, compliance_report,
+                archetype_report, motivation_report, ipo_report,
             )
 
         # ── Gate 5: Paper trade approval ─────────────────────────────────────
@@ -119,6 +141,7 @@ class DecisionParliament:
                 f"Multiple agents converge on {direction} view with sufficient confidence. "
                 f"Risk Governor clear. Paper trade approved (no live execution).",
                 ob_report, dna_report, inst_report, risk_report, compliance_report,
+                archetype_report, motivation_report, ipo_report,
             )
 
         # ── Gate 6: Watchlist ─────────────────────────────────────────────────
@@ -128,6 +151,7 @@ class DecisionParliament:
                 "Signal is present but conviction is insufficient for execution. "
                 "Setup added to watchlist for further monitoring.",
                 ob_report, dna_report, inst_report, risk_report, compliance_report,
+                archetype_report, motivation_report, ipo_report,
             )
 
         # ── Default: Research only ────────────────────────────────────────────
@@ -136,6 +160,7 @@ class DecisionParliament:
             "Analysis complete. No actionable trade setup detected at this time. "
             "Research output delivered.",
             ob_report, dna_report, inst_report, risk_report, compliance_report,
+            archetype_report, motivation_report, ipo_report,
         )
 
     @staticmethod
@@ -149,7 +174,11 @@ class DecisionParliament:
         inst: InstitutionalFootprintReport,
         risk: RiskGovernorReport,
         compliance: ComplianceReport,
+        archetype: Optional[ParticipantArchetypeReport] = None,
+        motivation: Optional[MotivationInferenceReport] = None,
+        ipo: Optional[IPOMicrostructureReport] = None,
     ) -> DecisionParliamentResult:
+        # ── Core human explanation ────────────────────────────────────────────
         human_exp = (
             f"Symbol: {symbol} | Regime: {dna.regime} (confidence {dna.regime_confidence:.0%}) | "
             f"Order book bias: {ob.directional_bias} ({ob.bias_confidence:.0%}) | "
@@ -158,6 +187,40 @@ class DecisionParliament:
             f"Disposition: {disposition.replace('_', ' ').upper()}. "
             f"{reasoning}"
         )
+
+        # ── Phase 2A extensions ───────────────────────────────────────────────
+        arch_label: Optional[str] = None
+        arch_prob: Optional[float] = None
+        motiv_primary: Optional[str] = None
+        motiv_conf: Optional[str] = None
+        ipo_phase: Optional[str] = None
+
+        if archetype:
+            arch_label = archetype.archetype
+            arch_prob = archetype.probability
+            human_exp += (
+                f" | WHO: {archetype.archetype.replace('_', ' ')} "
+                f"({archetype.probability:.0%}, {archetype.confidence_label} confidence)"
+            )
+
+        if motivation:
+            motiv_primary = motivation.motivation_primary
+            motiv_conf = motivation.motivation_confidence
+            human_exp += (
+                f" | WHY: {motivation.motivation_primary.replace('_', ' ')} "
+                f"(confidence: {motivation.motivation_confidence}, engine: {motivation.engine_used})"
+            )
+
+        if ipo:
+            ipo_phase = ipo.price_discovery_phase
+            human_exp += (
+                f" | IPO Phase: {ipo.price_discovery_phase.replace('_', ' ')}"
+            )
+            if ipo.stabilisation_agent_likely:
+                human_exp += " [stabilisation activity detected]"
+            if ipo.greenshoe_activity_likely:
+                human_exp += " [greenshoe-like activity]"
+
         return DecisionParliamentResult(
             symbol=symbol,
             timestamp_ns=ts,
@@ -173,4 +236,9 @@ class DecisionParliament:
             compliance_status=compliance.status,
             human_explanation=human_exp,
             limitations=COMPLIANCE_LIMITATIONS_STATEMENT,
+            participant_archetype=arch_label,
+            participant_archetype_prob=arch_prob,
+            motivation_primary=motiv_primary,
+            motivation_confidence=motiv_conf,
+            ipo_phase=ipo_phase,
         )

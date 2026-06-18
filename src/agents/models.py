@@ -73,6 +73,52 @@ class ComplianceReport:
 
 
 @dataclass
+class ParticipantArchetypeReport:
+    """WHO layer — behavioural archetype classification (Phase 2A)."""
+    symbol: str
+    timestamp_ns: int
+    archetype: str                 # institutional_accumulator | retail_sentiment_buyer |
+                                   # algorithmic_market_maker | momentum_ignitor |
+                                   # strategic_seller | informed_flow_proxy | unknown_mixed
+    probability: float             # 0.0 – 1.0
+    confidence_label: str          # high | medium | low | insufficient_data
+    secondary_archetype: Optional[str]
+    secondary_probability: float
+    evidence: list[str]
+    limitations: str               # always populated – compliance requirement
+
+
+@dataclass
+class IPOMicrostructureReport:
+    """IPO-specific microstructure signals (Phase 2A)."""
+    symbol: str
+    timestamp_ns: int
+    is_ipo_symbol: bool
+    price_discovery_phase: str     # pre_open | price_discovery | stabilisation |
+                                   # post_stabilisation | normal_trading
+    greenshoe_activity_likely: bool
+    stabilisation_agent_likely: bool
+    lock_up_proximity_signal: bool  # within 30 days of lock-up expiry
+    ipo_specific_signals: list[str]
+    confidence_label: str
+
+
+@dataclass
+class MotivationInferenceReport:
+    """WHY layer — motivation taxonomy inference (Phase 2A)."""
+    symbol: str
+    timestamp_ns: int
+    motivation_primary: str        # see MOTIVATION_TAXONOMY in motivation_inference_agent.py
+    motivation_confidence: str     # high | medium | low
+    motivation_evidence: list[str]
+    motivation_alternative: str
+    archetype_context: str         # the WHO archetype that drove this inference
+    reasoning_trace: str           # rule-based narrative or DeepSeek reasoning trace
+    engine_used: str               # "rule_based" | "deepseek"
+    compliance_cleared: bool
+
+
+@dataclass
 class DecisionParliamentResult:
     symbol: str
     timestamp_ns: int
@@ -89,4 +135,10 @@ class DecisionParliamentResult:
     compliance_status: str
     human_explanation: str
     limitations: str
+    # Phase 2A extended fields (optional – None when agents not yet wired)
+    participant_archetype: Optional[str] = None
+    participant_archetype_prob: Optional[float] = None
+    motivation_primary: Optional[str] = None
+    motivation_confidence: Optional[str] = None
+    ipo_phase: Optional[str] = None
     timestamp_ms: int = field(default_factory=lambda: int(time.time() * 1000))

@@ -26,7 +26,7 @@ from pathlib import Path
 import orjson
 
 from src.config import AUDIT_LOG_DIR
-from src.agents.models import DecisionParliamentResult
+from src.agents.models import DecisionParliamentResult, MotivationInferenceReport
 from src.data_intake.models import FeedHealthReport
 from src.features.engineer import FeatureVector
 
@@ -63,8 +63,31 @@ class AuditLedger:
             "compliance_status": result.compliance_status,
             "human_explanation": result.human_explanation,
             "limitations": result.limitations,
+            # Phase 2A extended fields
+            "participant_archetype": result.participant_archetype,
+            "participant_archetype_prob": result.participant_archetype_prob,
+            "motivation_primary": result.motivation_primary,
+            "motivation_confidence": result.motivation_confidence,
+            "ipo_phase": result.ipo_phase,
         }
         self._write(result.symbol, record)
+
+    def log_motivation(self, report: MotivationInferenceReport) -> None:
+        """Write a Phase 2A motivation inference record to the audit ledger."""
+        record = {
+            "record_type": "motivation",
+            "timestamp": report.timestamp_ns,
+            "symbol": report.symbol,
+            "archetype_context": report.archetype_context,
+            "motivation_primary": report.motivation_primary,
+            "motivation_confidence": report.motivation_confidence,
+            "motivation_alternative": report.motivation_alternative,
+            "motivation_evidence": report.motivation_evidence,
+            "engine_used": report.engine_used,
+            "reasoning_trace": report.reasoning_trace,
+            "compliance_cleared": report.compliance_cleared,
+        }
+        self._write(report.symbol, record)
 
     def log_health(self, health: FeedHealthReport) -> None:
         record = {
