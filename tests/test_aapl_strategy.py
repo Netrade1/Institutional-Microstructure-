@@ -59,19 +59,20 @@ class BacktestTests(unittest.TestCase):
     def test_backtest_executes_profit_target_trade(self):
         bars = []
         start = datetime(2020, 1, 1)
+        config = StrategyConfig(
+            initial_cash=100_000,
+            fast_ema_period=3,
+            slow_ema_period=5,
+            rsi_period=3,
+            atr_period=3,
+            long_sma_period=10,
+            volume_sma_period=3,
+            min_atr_ratio=0.005,
+            max_atr_ratio=0.20,
+        )
 
-        for index in range(220):
-            if index < 170:
-                close = 100 + (index * 0.05)
-            elif index < 200:
-                close = 108 + ((index - 170) * 0.8)
-            elif index == 200:
-                close = 132
-            elif index == 201:
-                close = 136
-            else:
-                close = 160
-
+        closes = [100, 99, 98, 97, 96, 95, 96, 98, 101, 105, 110, 116, 123]
+        for index, close in enumerate(closes):
             open_price = close * 0.998
             bars.append(
                 Bar(
@@ -84,9 +85,9 @@ class BacktestTests(unittest.TestCase):
                 )
             )
 
-        result = backtest_strategy(bars)
+        result = backtest_strategy(bars, config)
         self.assertGreaterEqual(result.trade_count, 1)
-        self.assertTrue(any(trade.exit_reason in {"profit_target", "end_of_test"} for trade in result.trades))
+        self.assertEqual(result.trades[0].exit_reason, "profit_target")
         self.assertGreater(result.final_equity, 100_000)
 
     def test_csv_loader_rejects_zero_volume(self):
