@@ -6,6 +6,7 @@
 - Timeframe: Daily bars
 - Period: 2015-01-01 to 2024-12-31
 - Strategy version: Institutional indicators enabled (VWAP/TWAP/RVOL/RSI(7,14,21)/OBV/MACD)
+- Note: This file records archived baseline results; rerun through the current date for production research.
 
 ## Metrics Comparison
 

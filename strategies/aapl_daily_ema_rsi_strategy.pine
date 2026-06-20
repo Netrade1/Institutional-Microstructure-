@@ -29,10 +29,10 @@ var float twapCum = na
 var int twapCount = na
 newSession = ta.change(time("D")) != 0
 if barstate.isfirst or newSession
-    twapCum := close
+    twapCum := hlc3
     twapCount := 1
 else
-    twapCum += close
+    twapCum += hlc3
     twapCount += 1
 twapValue = twapCum / twapCount
 

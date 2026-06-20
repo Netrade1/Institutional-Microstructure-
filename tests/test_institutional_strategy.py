@@ -30,6 +30,7 @@ class InstitutionalIndicatorTests(unittest.TestCase):
         self.assertFalse(v.isna().all())
         self.assertFalse(t.isna().all())
         self.assertAlmostEqual(float(t.iloc[0]), float(df["close"].iloc[0]), places=6)
+        self.assertAlmostEqual(float(t.iloc[1]), float(df["close"].iloc[:2].mean()), places=6)
 
     def test_obv_and_macd_columns_exist(self) -> None:
         df = self.sample_df()

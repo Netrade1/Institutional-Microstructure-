@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
@@ -18,6 +17,10 @@ from indicators.institutional_indicators import (
     twap,
     vwap,
 )
+
+BPS_TO_DECIMAL = 10_000
+# Floor avoids divide-by-zero if stop distance collapses during malformed/flat data.
+MIN_RISK_PER_SHARE = 1e-9
 
 
 @dataclass(frozen=True)
@@ -51,13 +54,14 @@ def compute_indicators(df: pd.DataFrame, params: StrategyParams) -> pd.DataFrame
 
     data = df.copy()
     data = data.sort_index()
+    data["typical_price"] = (data["high"] + data["low"] + data["close"]) / 3.0
 
     data["ema_fast"] = data["close"].ewm(span=params.ema_fast, adjust=False).mean()
     data["ema_slow"] = data["close"].ewm(span=params.ema_slow, adjust=False).mean()
     data["sma_trend"] = data["close"].rolling(params.sma_trend, min_periods=1).mean()
 
-    data["vwap"] = vwap(data)
-    data["twap"] = twap(data)
+    data["vwap"] = vwap(data, price_col="typical_price")
+    data["twap"] = twap(data, price_col="typical_price")
     data["rvol"] = rvol(data["volume"], params.rvol_lookback)
 
     data["rsi_7"] = rsi(data["close"], params.rsi_fast)
@@ -101,7 +105,7 @@ def _max_drawdown(equity_curve: pd.Series) -> float:
     return float(drawdown.min()) if not drawdown.empty else 0.0
 
 
-def _profit_factor(pnls: List[float]) -> float:
+def _profit_factor(pnls: list[float]) -> float:
     gross_profit = sum(x for x in pnls if x > 0)
     gross_loss = abs(sum(x for x in pnls if x < 0))
     if gross_loss == 0:
@@ -115,7 +119,7 @@ def run_backtest(
     initial_capital: float = 100_000.0,
     slippage_bps: float = 5.0,
     commission_bps: float = 1.0,
-) -> Tuple[pd.DataFrame, Dict[str, float], Dict[str, int]]:
+) -> tuple[pd.DataFrame, dict[str, float], dict[str, int]]:
     params = params or StrategyParams()
     data = compute_indicators(df, params)
 
@@ -125,9 +129,9 @@ def run_backtest(
     entry_price = np.nan
     peak_price = np.nan
 
-    trades: List[Dict[str, float]] = []
-    equity_curve: List[float] = []
-    signal_counter: Dict[str, int] = {
+    trades: list[dict[str, float]] = []
+    equity_curve: list[float] = []
+    signal_counter: dict[str, int] = {
         "entry_trend": 0,
         "entry_vwap": 0,
         "entry_rvol": 0,
@@ -142,16 +146,16 @@ def run_backtest(
         "exit_trailing": 0,
     }
 
-    slip_mult_buy = 1 + slippage_bps / 10_000
-    slip_mult_sell = 1 - slippage_bps / 10_000
-    fee_mult = commission_bps / 10_000
+    slip_mult_buy = 1 + slippage_bps / BPS_TO_DECIMAL
+    slip_mult_sell = 1 - slippage_bps / BPS_TO_DECIMAL
+    fee_mult = commission_bps / BPS_TO_DECIMAL
 
     for ts, row in data.iterrows():
         close = float(row["close"])
 
         if shares <= 0 and bool(row["entry_long"]):
             stop_price = close * (1 - params.hard_stop_pct)
-            risk_per_share = max(close - stop_price, 1e-9)
+            risk_per_share = max(close - stop_price, MIN_RISK_PER_SHARE)
             risk_budget = equity * params.risk_per_trade
             target_shares = risk_budget / risk_per_share
             affordable_shares = cash / (close * slip_mult_buy)
@@ -185,7 +189,7 @@ def run_backtest(
                 fees = fill * shares * fee_mult
                 proceeds = fill * shares - fees
                 cash += proceeds
-                pnl = (fill - entry_price) * shares - fees
+                pnl = (fill - entry_price) * shares
                 trades.append(
                     {
                         "timestamp": ts,
@@ -224,15 +228,16 @@ def run_backtest(
     pnls = [t["pnl"] for t in trades]
     returns = data["equity"].pct_change().fillna(0)
 
+    final_equity = float(data["equity"].iloc[-1]) if len(data.index) > 0 else initial_capital
     metrics = {
         "initial_capital": initial_capital,
-        "ending_equity": float(data["equity"].iloc[-1]) if not data.empty else initial_capital,
-        "total_return_pct": (float(data["equity"].iloc[-1]) / initial_capital - 1) * 100 if not data.empty else 0.0,
+        "ending_equity": final_equity,
+        "total_return_pct": (final_equity / initial_capital - 1) * 100,
         "trade_count": float(len(trades)),
         "win_rate_pct": (sum(1 for p in pnls if p > 0) / len(pnls) * 100) if pnls else 0.0,
         "profit_factor": _profit_factor(pnls),
         "max_drawdown_pct": _max_drawdown(data["equity"]) * 100 if not data.empty else 0.0,
-        "sharpe_daily": float(np.sqrt(252) * returns.mean() / returns.std()) if returns.std() > 0 else 0.0,
+        "sharpe_annualized": float(np.sqrt(252) * returns.mean() / returns.std()) if returns.std() > 0 else 0.0,
     }
 
     return data, metrics, signal_counter

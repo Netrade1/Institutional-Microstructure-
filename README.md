@@ -5,7 +5,7 @@ Institutional-grade strategy package with aligned Pine Script and Python backtes
 ## Strategy Scope
 
 - **Market:** U.S. equities (example: AAPL)
-- **Primary template timeframe:** Daily OHLCV (2015-2024 backtest window)
+- **Primary template timeframe:** Daily OHLCV (2015-2024 baseline window; extend to latest data for live research refreshes)
 - **Core model:** EMA trend + RSI regime + institutional confirmation stack
 
 ## Institutional Indicators Added

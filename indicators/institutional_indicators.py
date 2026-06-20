@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
 
 
@@ -14,9 +15,12 @@ def _validate_index(df: pd.DataFrame) -> pd.DataFrame:
 def vwap(df: pd.DataFrame, price_col: str = "close", volume_col: str = "volume") -> pd.Series:
     """Session-anchored VWAP using cumulative price*volume / cumulative volume."""
     _validate_index(df)
+    if (df[volume_col] < 0).any():
+        raise ValueError("Volume values must be non-negative for VWAP calculation.")
     session = df.index.normalize()
     pv = df[price_col] * df[volume_col]
-    return pv.groupby(session).cumsum() / df[volume_col].groupby(session).cumsum().replace(0, pd.NA)
+    cum_vol = df[volume_col].groupby(session).cumsum().replace(0, pd.NA)
+    return pv.groupby(session).cumsum() / cum_vol
 
 
 def twap(df: pd.DataFrame, price_col: str = "close") -> pd.Series:
@@ -30,7 +34,10 @@ def twap(df: pd.DataFrame, price_col: str = "close") -> pd.Series:
 
 def rvol(volume: pd.Series, lookback: int = 20) -> pd.Series:
     """Relative volume versus rolling mean volume."""
-    return volume / volume.rolling(lookback, min_periods=1).mean().replace(0, pd.NA)
+    if (volume < 0).any():
+        raise ValueError("Volume values must be non-negative for RVOL calculation.")
+    vol_mean = volume.rolling(lookback, min_periods=1).mean()
+    return volume / vol_mean.where(vol_mean != 0, pd.NA)
 
 
 def rsi(series: pd.Series, length: int = 14) -> pd.Series:
@@ -47,7 +54,8 @@ def rsi(series: pd.Series, length: int = 14) -> pd.Series:
 def obv(df: pd.DataFrame, close_col: str = "close", volume_col: str = "volume") -> pd.Series:
     """On-balance volume cumulative flow."""
     close = df[close_col]
-    direction = close.diff().fillna(0).apply(lambda x: 1 if x > 0 else (-1 if x < 0 else 0))
+    close_diff = close.diff().fillna(0)
+    direction = pd.Series(np.where(close_diff > 0, 1, np.where(close_diff < 0, -1, 0)), index=close.index)
     return (direction * df[volume_col]).cumsum()
 
 
