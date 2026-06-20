@@ -63,20 +63,20 @@ Assumptions built into the implementation:
 
 ## Files
 
-- `/home/runner/work/Institutional-Microstructure-/Institutional-Microstructure-/src/aapl_strategy.py` - strategy, indicators, position sizing, metrics, CLI
-- `/home/runner/work/Institutional-Microstructure-/Institutional-Microstructure-/tests/test_aapl_strategy.py` - automated tests
+- `src/aapl_strategy.py` - strategy, indicators, position sizing, metrics, CLI
+- `tests/test_aapl_strategy.py` - automated tests
 
 ## Run the tests
 
 ```bash
-cd /home/runner/work/Institutional-Microstructure-/Institutional-Microstructure-
+cd <repository-root>
 python -m unittest discover -s tests -v
 ```
 
 ## Run a backtest
 
 ```bash
-cd /home/runner/work/Institutional-Microstructure-/Institutional-Microstructure-
+cd <repository-root>
 python src/aapl_strategy.py /absolute/path/to/aapl_daily.csv
 ```
 
