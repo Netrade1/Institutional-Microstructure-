@@ -300,7 +300,7 @@ def backtest_strategy(bars: List[Bar], config: StrategyConfig | None = None) -> 
             rsi_value = rsi_values[index]
             if None in (atr_value, sma_value, volume_avg, rsi_value):
                 continue
-            volatility_ratio = atr_value / bar.close if bar.close else math.inf
+            volatility_ratio = atr_value / bar.close
             entry_signal = all(
                 (
                     _crossed_above(ema_fast, ema_slow, index),
