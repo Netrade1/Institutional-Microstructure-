@@ -21,6 +21,8 @@ from indicators.institutional_indicators import (
 BPS_TO_DECIMAL = 10_000
 # Floor avoids divide-by-zero if stop distance collapses during malformed/flat data.
 MIN_RISK_PER_SHARE = 1e-9
+MIN_POSITION_SHARES = 1.0
+TRADING_DAYS_PER_YEAR = 252
 
 
 @dataclass(frozen=True)
@@ -54,7 +56,7 @@ def compute_indicators(df: pd.DataFrame, params: StrategyParams) -> pd.DataFrame
 
     data = df.copy()
     data = data.sort_index()
-    data["typical_price"] = (data["high"] + data["low"] + data["close"]) / 3.0
+    data["typical_price"] = (data["high"] + data["low"] + data["close"]) / 3.0  # Pine hlc3 parity
 
     data["ema_fast"] = data["close"].ewm(span=params.ema_fast, adjust=False).mean()
     data["ema_slow"] = data["close"].ewm(span=params.ema_slow, adjust=False).mean()
@@ -160,7 +162,7 @@ def run_backtest(
             target_shares = risk_budget / risk_per_share
             affordable_shares = cash / (close * slip_mult_buy)
             shares = max(0.0, min(target_shares, affordable_shares))
-            if shares > 0:
+            if shares >= MIN_POSITION_SHARES:
                 fill = close * slip_mult_buy
                 fees = fill * shares * fee_mult
                 cash -= (fill * shares + fees)
@@ -237,7 +239,7 @@ def run_backtest(
         "win_rate_pct": (sum(1 for p in pnls if p > 0) / len(pnls) * 100) if pnls else 0.0,
         "profit_factor": _profit_factor(pnls),
         "max_drawdown_pct": _max_drawdown(data["equity"]) * 100 if not data.empty else 0.0,
-        "sharpe_annualized": float(np.sqrt(252) * returns.mean() / returns.std()) if returns.std() > 0 else 0.0,
+        "sharpe_annualized": float(np.sqrt(TRADING_DAYS_PER_YEAR) * returns.mean() / returns.std()) if returns.std() > 0 else 0.0,
     }
 
     return data, metrics, signal_counter

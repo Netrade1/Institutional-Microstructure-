@@ -37,7 +37,7 @@ else
 twapValue = twapCum / twapCount
 
 volSma = ta.sma(volume, rvolLen)
-rvolValue = volume / math.max(volSma, 1)
+rvolValue = volSma > 0 ? volume / volSma : na
 
 rsiFast = ta.rsi(close, rsiFastLen)
 rsiPrimary = ta.rsi(close, rsiLen)
