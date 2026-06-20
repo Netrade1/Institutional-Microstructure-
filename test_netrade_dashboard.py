@@ -4,22 +4,24 @@ import argparse
 import itertools
 import math
 import unittest
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
+from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
+from pandas.tseries.offsets import BDay
 
 
 try:
     import matplotlib.pyplot as plt
-except Exception:  # pragma: no cover - plotting is optional in test environments
+except ImportError:  # pragma: no cover - plotting is optional in test environments
     plt = None
 
 
 try:
     import yfinance as yf
-except Exception:  # pragma: no cover - data fetch can be mocked in tests
+except ImportError:  # pragma: no cover - data fetch can be mocked in tests
     yf = None
 
 
@@ -41,6 +43,9 @@ class StrategyParams:
     profit_target_pct: float = 0.15
     risk_pct: float = 0.02
     slippage_pct: float = 0.0002  # 0.02%
+
+
+OPTIMIZATION_GRID = {"rsi_min": [35.0, 40.0, 45.0], "rsi_max": [65.0, 70.0], "trail_pct": [0.06, 0.08, 0.1]}
 
 
 def _rsi(series: pd.Series, period: int) -> pd.Series:
@@ -78,7 +83,8 @@ def fetch_ohlcv(symbol: str, start: str, end: str) -> pd.DataFrame:
     if not required.issubset(set(data.columns)):
         raise ValueError(f"Missing required columns. Found {list(data.columns)}")
     data = data.sort_index().copy()
-    business_idx = pd.date_range(data.index.min(), data.index.max(), freq="B")
+    # Mon-Fri business-day approximation; exchange-specific holidays are not explicitly modeled.
+    business_idx = pd.date_range(data.index.min(), data.index.max(), freq=BDay())
     data = data.reindex(business_idx)
     ohlc = ["Open", "High", "Low", "Close"]
     data[ohlc] = data[ohlc].ffill()
@@ -87,6 +93,10 @@ def fetch_ohlcv(symbol: str, start: str, end: str) -> pd.DataFrame:
 
 
 def load_csv_ohlcv(path: str) -> pd.DataFrame:
+    if not path:
+        raise ValueError("CSV path cannot be empty.")
+    if not Path(path).exists():
+        raise FileNotFoundError(f"CSV path does not exist: {path}")
     df = pd.read_csv(path, parse_dates=True, index_col=0).sort_index()
     required = {"Open", "High", "Low", "Close", "Volume"}
     if not required.issubset(set(df.columns)):
@@ -225,8 +235,6 @@ def backtest(df: pd.DataFrame, p: StrategyParams, initial_capital: float = 100_0
 
     eq_df = pd.DataFrame(equity_curve).set_index("date")
     trades_df = pd.DataFrame(trades)
-    if not trades_df.empty and "pnl" not in trades_df:
-        trades_df["pnl"] = np.nan
 
     closed = trades_df.dropna(subset=["pnl"]).copy() if not trades_df.empty else pd.DataFrame(columns=["pnl"])
     gross_profit = float(closed.loc[closed["pnl"] > 0, "pnl"].sum()) if not closed.empty else 0.0
@@ -238,10 +246,17 @@ def backtest(df: pd.DataFrame, p: StrategyParams, initial_capital: float = 100_0
     merged["equity"] = merged["equity"].ffill().fillna(initial_capital)
     merged["drawdown"] = merged["equity"] / merged["equity"].cummax() - 1.0
 
+    if gross_loss < 0:
+        profit_factor = float(gross_profit / abs(gross_loss))
+    elif gross_profit > 0:
+        profit_factor = float("inf")
+    else:
+        profit_factor = 0.0
+
     metrics = {
         "trades": int(len(closed)),
         "win_rate": win_rate,
-        "profit_factor": float(gross_profit / abs(gross_loss)) if gross_loss < 0 else float("inf") if gross_profit > 0 else 0.0,
+        "profit_factor": profit_factor,
         "max_drawdown": _max_drawdown(merged["equity"]),
         "sharpe": _annualized_sharpe(returns),
         "cagr": _cagr(merged["equity"]),
@@ -276,10 +291,11 @@ def plot_results(data: pd.DataFrame, trades: pd.DataFrame, metrics: Dict[str, fl
     ax_dd.fill_between(dd.index, dd.values, 0, color="firebrick", alpha=0.4)
     ax_dd.set_ylabel("Drawdown")
 
+    profit_factor_text = "inf (no losses)" if not np.isfinite(metrics["profit_factor"]) else f"{metrics['profit_factor']:.2f}"
     perf_text = (
         f"Trades: {metrics['trades']}\n"
         f"Win rate: {metrics['win_rate']:.2%}\n"
-        f"Profit factor: {metrics['profit_factor']:.2f}\n"
+        f"Profit factor: {profit_factor_text}\n"
         f"Max DD: {metrics['max_drawdown']:.2%}\n"
         f"Sharpe: {metrics['sharpe']:.2f}\n"
         f"CAGR: {metrics['cagr']:.2%}"
@@ -294,7 +310,7 @@ def optimize_parameters(df: pd.DataFrame, base: StrategyParams, grid: Dict[str, 
     values = [list(grid[k]) for k in keys]
     rows = []
     for combo in itertools.product(*values):
-        params = StrategyParams(**{**base.__dict__, **dict(zip(keys, combo))})
+        params = StrategyParams(**{**asdict(base), **dict(zip(keys, combo))})
         _, _, m = backtest(df, params)
         row = {k: v for k, v in zip(keys, combo)}
         row.update(m)
@@ -304,11 +320,11 @@ def optimize_parameters(df: pd.DataFrame, base: StrategyParams, grid: Dict[str, 
 
 
 def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="AAPL daily strategy backtest dashboard")
+    parser = argparse.ArgumentParser(description="Trading strategy backtest dashboard")
     parser.add_argument("--symbol", default="AAPL")
     parser.add_argument("--start", default="2015-01-01")
     parser.add_argument("--end", default="2024-12-31")
-    parser.add_argument("--initial-capital", type=float, default=100_000)
+    parser.add_argument("--initial-capital", dest="initial_capital", type=float, default=100_000)
     parser.add_argument("--plot", action="store_true", help="Render equity/drawdown charts")
     parser.add_argument("--optimize", action="store_true", help="Run small parameter grid search")
     parser.add_argument("--csv", help="Path to local OHLCV CSV with Open/High/Low/Close/Volume columns")
@@ -331,14 +347,16 @@ def run_cli(args: argparse.Namespace) -> int:
     print(f"Symbol: {args.symbol} | Timeframe: Daily | Period: {args.start} -> {args.end}")
     for k in ["trades", "win_rate", "profit_factor", "max_drawdown", "sharpe", "cagr", "total_return"]:
         v = metrics[k]
+        if isinstance(v, float) and not np.isfinite(v):
+            print(f"{k:>14}: inf (no losing trades)")
+            continue
         if k in {"win_rate", "max_drawdown", "cagr", "total_return"}:
             print(f"{k:>14}: {v:.2%}")
         else:
             print(f"{k:>14}: {v:.4f}" if isinstance(v, float) else f"{k:>14}: {v}")
 
     if args.optimize:
-        grid = {"rsi_min": [35.0, 40.0, 45.0], "rsi_max": [65.0, 70.0], "trail_pct": [0.06, 0.08, 0.1]}
-        optim = optimize_parameters(df, params, grid)
+        optim = optimize_parameters(df, params, OPTIMIZATION_GRID)
         print("\nTop optimization rows:")
         print(optim.head(10).to_string(index=False))
 

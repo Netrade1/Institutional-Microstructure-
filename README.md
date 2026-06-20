@@ -9,7 +9,7 @@ Comprehensive, back-testable trading strategy implementation for:
 
 - **Symbol:** AAPL
 - **Timeframe:** Daily bars
-- **Backtest window:** 2015-01-01 to 2024-12-31
+- **Backtest window (example):** 2015-01-01 to 2024-12-31
 - **Entry:** EMA(20) cross above EMA(50), RSI in [40, 70], close > SMA(200), volume filter, ATR/close filter
 - **Exit (first trigger):** 8% trailing stop, EMA cross down, 12% hard stop, 15% profit target
 - **Risk sizing:** 2% equity risked per trade with hard stop distance of 12%
@@ -20,31 +20,31 @@ Comprehensive, back-testable trading strategy implementation for:
 Run a backtest:
 
 ```bash
-python /home/runner/work/Institutional-Microstructure-/Institutional-Microstructure-/test_netrade_dashboard.py --symbol AAPL --start 2015-01-01 --end 2024-12-31
+python test_netrade_dashboard.py --symbol AAPL --start 2015-01-01 --end 2024-12-31
 ```
 
 Run unit tests:
 
 ```bash
-python -m unittest /home/runner/work/Institutional-Microstructure-/Institutional-Microstructure-/test_netrade_dashboard.py -v
+python -m unittest test_netrade_dashboard.py -v
 ```
 
 Optional optimization mode:
 
 ```bash
-python /home/runner/work/Institutional-Microstructure-/Institutional-Microstructure-/test_netrade_dashboard.py --optimize
+python test_netrade_dashboard.py --optimize
 ```
 
 Offline mode with local CSV:
 
 ```bash
-python /home/runner/work/Institutional-Microstructure-/Institutional-Microstructure-/test_netrade_dashboard.py --csv /absolute/path/to/aapl_daily.csv
+python test_netrade_dashboard.py --csv /absolute/path/to/aapl_daily.csv
 ```
 
 ## Data Handling Assumptions
 
 - Yahoo Finance daily OHLCV through `yfinance` with `auto_adjust=True` for split/dividend-adjusted prices.
-- Business-day reindexing and forward-fill for non-trading gaps.
+- Business-day reindexing and forward-fill for non-trading gaps (weekday approximation; market holidays are not explicitly calendared).
 - Slippage of 0.02% applied on entry and exit fills.
 
 ## Risk Disclaimer
