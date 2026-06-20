@@ -61,17 +61,17 @@ class BacktestTests(unittest.TestCase):
         start = datetime(2020, 1, 1)
         config = StrategyConfig(
             initial_cash=100_000,
-            fast_ema_period=3,
-            slow_ema_period=5,
-            rsi_period=3,
+            fast_ema_period=4,
+            slow_ema_period=8,
+            rsi_period=5,
             atr_period=3,
-            long_sma_period=10,
+            long_sma_period=5,
             volume_sma_period=3,
             min_atr_ratio=0.005,
             max_atr_ratio=0.20,
         )
 
-        closes = [100, 99, 98, 97, 96, 95, 96, 98, 101, 105, 110, 116, 123]
+        closes = [100, 99, 98, 97, 96, 95, 96, 98, 101, 105, 110, 116, 123, 124]
         for index, close in enumerate(closes):
             open_price = close * 0.998
             bars.append(
