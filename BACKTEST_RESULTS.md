@@ -16,7 +16,7 @@
 | Max Drawdown | 13%-15% | 10%-14% |
 | Trade Count | 200-220 | 210-240 |
 | Win Rate | 53%-56% | 55%-60% |
-| Sharpe Ratio (daily) | 1.2-1.4 | 1.3-1.6 |
+| Sharpe Ratio (annualized) | 1.2-1.4 | 1.3-1.6 |
 
 ## Signal Attribution
 

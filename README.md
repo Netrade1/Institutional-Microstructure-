@@ -35,7 +35,7 @@ Long entries require all of:
 Exit when any of the following triggers:
 
 - EMA(20) < EMA(50)
-- MACD histogram < 0 and MACD < signal
+- MACD histogram < 0 and MACD line < signal line
 - Price crosses below VWAP
 - OBV crosses below OBV_SMA(20)
 - Hard stop, trailing stop, or profit target
