@@ -1,0 +1,111 @@
+//@version=5
+strategy("AAPL EMA/RSI Trend Strategy", overlay=true, pyramiding=0, initial_capital=100000, commission_type=strategy.commission.cash_per_order, commission_value=0)
+
+// ===== Inputs =====
+emaFastLen = input.int(20, "EMA Fast Length", minval=1)
+emaSlowLenInput = input.int(50, "EMA Slow Length", minval=2)
+emaSlowLen = math.max(emaSlowLenInput, emaFastLen + 1)
+smaTrendLen = input.int(200, "SMA Trend Length", minval=10)
+rsiLen = input.int(14, "RSI Length", minval=2)
+rsiMin = input.float(40.0, "RSI Min", step=0.1)
+rsiMax = input.float(70.0, "RSI Max", step=0.1)
+volLen = input.int(20, "Volume SMA Length", minval=2)
+volMult = input.float(0.8, "Volume Min Multiplier", minval=0.0, step=0.05)
+atrLen = input.int(14, "ATR Length", minval=2)
+atrMin = input.float(0.01, "ATR/Close Min", step=0.001)
+atrMax = input.float(0.04, "ATR/Close Max", step=0.001)
+riskPct = input.float(0.02, "Risk % of Equity", minval=0.001, step=0.001)
+hardStopPct = input.float(0.12, "Hard Stop %", minval=0.01, step=0.01)
+trailPct = input.float(0.08, "Trailing Stop %", minval=0.01, step=0.01)
+profitTargetPct = input.float(0.15, "Profit Target %", minval=0.01, step=0.01)
+
+// ===== Indicators =====
+emaFast = ta.ema(close, emaFastLen)
+emaSlow = ta.ema(close, emaSlowLen)
+smaTrend = ta.sma(close, smaTrendLen)
+rsiVal = ta.rsi(close, rsiLen)
+atrVal = ta.atr(atrLen)
+volSma = ta.sma(volume, volLen)
+atrRatio = atrVal / close
+
+// ===== Entry Filters =====
+longCross = ta.crossover(emaFast, emaSlow)
+rsiFilter = rsiVal >= rsiMin and rsiVal <= rsiMax
+trendFilter = close > smaTrend
+volumeFilter = volume >= volMult * volSma
+volatilityFilter = atrRatio >= atrMin and atrRatio <= atrMax
+
+longCondition = longCross and rsiFilter and trendFilter and volumeFilter and volatilityFilter and strategy.position_size <= 0
+
+// 2% risk position sizing using 12% hard stop
+riskCapital = strategy.equity * riskPct
+stopDistance = close * hardStopPct
+qtyRaw = stopDistance > 0 ? riskCapital / stopDistance : 0.0
+qty = math.max(0, math.floor(qtyRaw))
+
+if longCondition and qty > 0
+    strategy.entry("Long", strategy.long, qty=qty, alert_message="ENTRY_LONG_AAPL")
+
+// ===== Exit Logic =====
+var float highSinceEntry = na
+if strategy.position_size > 0
+    highSinceEntry := na(highSinceEntry) ? close : math.max(highSinceEntry, close)
+else
+    highSinceEntry := na
+
+entryPrice = strategy.position_avg_price
+trailStop = highSinceEntry * (1 - trailPct)
+hardStop = entryPrice * (1 - hardStopPct)
+profitTarget = entryPrice * (1 + profitTargetPct)
+
+exitTrail = strategy.position_size > 0 and close < trailStop
+exitCross = strategy.position_size > 0 and ta.crossunder(emaFast, emaSlow)
+exitHard = strategy.position_size > 0 and close < hardStop
+exitProfit = strategy.position_size > 0 and close > profitTarget
+
+if exitTrail
+    strategy.close("Long", comment="trail_stop", alert_message="EXIT_TRAIL_AAPL")
+else if exitCross
+    strategy.close("Long", comment="ema_cross_down", alert_message="EXIT_CROSS_AAPL")
+else if exitHard
+    strategy.close("Long", comment="hard_stop", alert_message="EXIT_HARD_AAPL")
+else if exitProfit
+    strategy.close("Long", comment="profit_target", alert_message="EXIT_PROFIT_AAPL")
+
+// ===== Alerts =====
+alertcondition(longCondition, title="Long Entry", message="AAPL strategy long entry")
+alertcondition(exitTrail or exitCross or exitHard or exitProfit, title="Long Exit", message="AAPL strategy long exit")
+
+// ===== Visuals =====
+plot(emaFast, "EMA 20", color=color.new(color.teal, 0), linewidth=2)
+plot(emaSlow, "EMA 50", color=color.new(color.orange, 0), linewidth=2)
+plot(smaTrend, "SMA 200", color=color.new(color.blue, 0), linewidth=2)
+plotshape(longCondition, title="Entry", style=shape.triangleup, color=color.new(color.green, 0), location=location.belowbar, size=size.tiny)
+plotshape(exitTrail or exitCross or exitHard or exitProfit, title="Exit", style=shape.triangledown, color=color.new(color.red, 0), location=location.abovebar, size=size.tiny)
+
+// RSI and ATR ratio are plotted for visibility (separate pane recommended via "Move to")
+plot(rsiVal, "RSI", color=color.new(color.purple, 0), display=display.none)
+plot(atrRatio, "ATR/Close", color=color.new(color.fuchsia, 0), display=display.none)
+
+// ===== Performance Table =====
+var table perf = table.new(position.top_right, 2, 7, border_width=1)
+if barstate.islast
+    profitFactorText = "0"
+    if strategy.grossloss != 0
+        profitFactorText := str.tostring(strategy.grossprofit / math.abs(strategy.grossloss), "#.##")
+    else if strategy.grossprofit > 0
+        profitFactorText := "inf"
+    table.cell(perf, 0, 0, "Metric", bgcolor=color.new(color.gray, 70))
+    table.cell(perf, 1, 0, "Value", bgcolor=color.new(color.gray, 70))
+    table.cell(perf, 0, 1, "Net Profit")
+    table.cell(perf, 1, 1, str.tostring(strategy.netprofit, format.mintick))
+    table.cell(perf, 0, 2, "Closed Trades")
+    table.cell(perf, 1, 2, str.tostring(strategy.closedtrades))
+    table.cell(perf, 0, 3, "Win Rate %")
+    table.cell(perf, 1, 3, str.tostring(strategy.closedtrades > 0 ? (strategy.wintrades / strategy.closedtrades) * 100 : 0, "#.##"))
+    table.cell(perf, 0, 4, "Profit Factor")
+    table.cell(perf, 1, 4, profitFactorText)
+    table.cell(perf, 0, 5, "Max Drawdown")
+    table.cell(perf, 1, 5, str.tostring(strategy.max_drawdown, format.mintick))
+    table.cell(perf, 0, 6, "Equity")
+    table.cell(perf, 1, 6, str.tostring(strategy.equity, format.mintick))
