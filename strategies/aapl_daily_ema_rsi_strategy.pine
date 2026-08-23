@@ -1,0 +1,103 @@
+//@version=5
+strategy("AAPL Institutional EMA RSI Strategy", overlay=true, initial_capital=100000, commission_type=strategy.commission.percent, commission_value=0.01)
+
+emaFastLen = input.int(20, "EMA Fast", minval=1)
+emaSlowLen = input.int(50, "EMA Slow", minval=1)
+smaTrendLen = input.int(200, "Trend SMA", minval=1)
+rvolLen = input.int(20, "RVOL Length", minval=1)
+rvolThreshold = input.float(1.2, "RVOL Threshold", minval=0.1, step=0.1)
+rsiFastLen = input.int(7, "RSI Fast", minval=1)
+rsiLen = input.int(14, "RSI Primary", minval=1)
+rsiSlowLen = input.int(21, "RSI Slow", minval=1)
+rsiMin = input.float(40.0, "RSI Min", step=0.5)
+rsiMax = input.float(70.0, "RSI Max", step=0.5)
+obvSmaLen = input.int(20, "OBV SMA Length", minval=1)
+macdFast = input.int(12, "MACD Fast", minval=1)
+macdSlow = input.int(26, "MACD Slow", minval=1)
+macdSignalLen = input.int(9, "MACD Signal", minval=1)
+divergenceLookback = input.int(5, "Divergence Lookback", minval=1)
+trailStopPct = input.float(8.0, "Trailing Stop %", minval=0.1)
+hardStopPct = input.float(12.0, "Hard Stop %", minval=0.1)
+profitTargetPct = input.float(15.0, "Profit Target %", minval=0.1)
+
+emaFast = ta.ema(close, emaFastLen)
+emaSlow = ta.ema(close, emaSlowLen)
+smaTrend = ta.sma(close, smaTrendLen)
+vwapValue = ta.vwap(hlc3)
+
+var float twapCum = na
+var int twapCount = na
+newSession = ta.change(time("D")) != 0
+if barstate.isfirst or newSession
+    twapCum := hlc3
+    twapCount := 1
+else
+    twapCum += hlc3
+    twapCount += 1
+twapValue = twapCum / twapCount
+
+volSma = ta.sma(volume, rvolLen)
+rvolValue = volSma > 0 ? volume / volSma : na
+
+rsiFast = ta.rsi(close, rsiFastLen)
+rsiPrimary = ta.rsi(close, rsiLen)
+rsiSlow = ta.rsi(close, rsiSlowLen)
+
+obv = ta.obv(close, volume)
+obvSma = ta.sma(obv, obvSmaLen)
+
+[macdLine, macdSignal, macdHist] = ta.macd(close, macdFast, macdSlow, macdSignalLen)
+
+rsiBearDiv = close > close[divergenceLookback] and rsiPrimary < rsiPrimary[divergenceLookback]
+macdBearDiv = close > close[divergenceLookback] and macdHist < macdHist[divergenceLookback]
+obvBearDiv = close > close[divergenceLookback] and obv < obv[divergenceLookback]
+
+entryCondition = emaFast > emaSlow and rsiPrimary >= rsiMin and rsiPrimary <= rsiMax and close > smaTrend and close > vwapValue and rvolValue > rvolThreshold and obv > obvSma and macdHist > 0 and macdLine > macdSignal and not rsiBearDiv
+
+exitTrend = emaFast < emaSlow
+exitMomentum = macdHist < 0 and macdLine < macdSignal
+exitVwap = ta.crossunder(close, vwapValue)
+exitObv = ta.crossunder(obv, obvSma)
+exitCondition = exitTrend or exitMomentum or exitVwap or exitObv
+
+if entryCondition and strategy.position_size <= 0
+    strategy.entry("Long", strategy.long)
+
+if strategy.position_size > 0
+    stopPrice = strategy.position_avg_price * (1 - hardStopPct / 100)
+    limitPrice = strategy.position_avg_price * (1 + profitTargetPct / 100)
+    trailOffset = strategy.position_avg_price * (trailStopPct / 100)
+    strategy.exit("Risk Exit", "Long", stop=stopPrice, limit=limitPrice, trail_offset=trailOffset)
+
+if exitCondition and strategy.position_size > 0
+    strategy.close("Long", comment="Institutional Exit")
+
+plot(emaFast, color=color.new(color.green, 0), title="EMA 20")
+plot(emaSlow, color=color.new(color.orange, 0), title="EMA 50")
+plot(smaTrend, color=color.new(color.gray, 0), title="SMA 200")
+plot(vwapValue, color=color.new(color.cyan, 0), linewidth=2, title="VWAP")
+plot(twapValue, color=color.new(color.aqua, 25), linewidth=2, title="TWAP")
+
+plot(obv, title="OBV", color=obv > obvSma ? color.new(color.green, 0) : color.new(color.red, 0), display=display.none)
+plot(obvSma, title="OBV SMA", color=color.new(color.yellow, 0), display=display.none)
+
+plot(rsiPrimary, title="RSI 14", color=color.new(color.blue, 0), display=display.none)
+plot(rsiFast, title="RSI 7", color=color.new(color.purple, 0), display=display.none)
+plot(rsiSlow, title="RSI 21", color=color.new(color.teal, 0), display=display.none)
+
+plot(macdLine, title="MACD", color=color.new(color.blue, 0), display=display.none)
+plot(macdSignal, title="MACD Signal", color=color.new(color.orange, 0), display=display.none)
+plot(macdHist, title="MACD Histogram", color=macdHist >= 0 ? color.new(color.green, 0) : color.new(color.red, 0), style=plot.style_histogram, display=display.none)
+hline(0, "MACD Zero", color=color.new(color.gray, 0), linestyle=hline.style_dotted)
+
+bgcolor(rvolValue > rvolThreshold ? color.new(color.lime, 88) : na, title="RVOL Surge")
+
+plotshape(ta.cross(close, vwapValue), title="VWAP Cross", style=shape.triangleup, color=color.cyan, size=size.tiny, location=location.belowbar, text="VWAP")
+plotshape(exitObv, title="OBV Reversal", style=shape.triangledown, color=color.red, size=size.tiny, location=location.abovebar, text="OBV")
+plotshape(macdBearDiv, title="MACD Divergence", style=shape.labeldown, color=color.orange, size=size.tiny, location=location.abovebar, text="MACD Div")
+
+alertcondition(ta.cross(close, vwapValue), title="VWAP Cross Alert", message="Price crossed VWAP")
+alertcondition(exitObv, title="OBV Reversal Alert", message="OBV crossed below OBV SMA")
+alertcondition(macdBearDiv, title="MACD Divergence Alert", message="Bearish MACD divergence detected")
+alertcondition(entryCondition, title="Institutional Long Entry", message="Institutional long setup confirmed")
+alertcondition(exitCondition, title="Institutional Exit", message="Institutional exit setup confirmed")
