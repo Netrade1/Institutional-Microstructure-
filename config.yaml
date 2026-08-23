@@ -1,0 +1,40 @@
+# AI Trading Bot Configuration
+
+# Trading Parameters
+trading:
+  symbols:
+    - BTC/USDT
+    - ETH/USDT
+    - AAPL
+    - GOOGL
+  initial_capital: 100000
+  max_position_size: 0.2
+  stop_loss: 0.02
+  take_profit: 0.05
+  
+# Machine Learning Parameters
+ml:
+  models:
+    - lstm
+    - random_forest
+    - xgboost
+  lookback_period: 60
+  prediction_horizon: 5
+  training_split: 0.8
+  
+# Risk Management
+risk:
+  max_daily_loss: 0.05
+  max_portfolio_risk: 0.15
+  diversification_min: 3
+  
+# Data Sources
+data:
+  interval: 1h
+  history_days: 365
+  
+# Dashboard
+dashboard:
+  host: 0.0.0.0
+  port: 5000
+  debug: false
