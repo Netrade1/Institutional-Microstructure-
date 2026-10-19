@@ -240,7 +240,7 @@ class TestDecisionParliament:
         result = p.deliberate(ob, dna, inst, bad_risk, comp)
         assert result.disposition == "data_insufficient"
 
-    def test_paper_trade_approved_with_strong_signals(self):
+    def test_strong_paper_candidate_requires_human_approval(self):
         ob, dna, inst, risk, comp = self._make_reports(
             ob_bias="bullish", ob_conf=0.70,
             regime="accumulation",
@@ -249,7 +249,8 @@ class TestDecisionParliament:
         )
         p = DecisionParliament()
         result = p.deliberate(ob, dna, inst, risk, comp)
-        assert result.disposition in {"paper_trade_approved", "watchlist"}
+        assert result.disposition == "human_review"
+        assert "mandatory human approval remains pending" in result.reasoning
 
     def test_result_has_limitations(self):
         ob, dna, inst, risk, comp = self._make_reports()

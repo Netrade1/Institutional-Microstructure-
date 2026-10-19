@@ -40,7 +40,11 @@ REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
 # ── Execution mode ────────────────────────────────────────────────────────────
 EXECUTION_MODE: str = os.getenv("EXECUTION_MODE", "paper").lower()
-LIVE_MODE_ENABLED: bool = EXECUTION_MODE == "live"
+if EXECUTION_MODE != "paper":
+    raise ValueError("This research prototype supports paper-only operation")
+LIVE_MODE_ENABLED: bool = False
+HUMAN_APPROVAL_REQUIRED: bool = True
+MODEL_AUTO_PROMOTION: bool = False
 
 # ── Risk defaults ─────────────────────────────────────────────────────────────
 MAX_DAILY_LOSS_PCT: float = float(os.getenv("MAX_DAILY_LOSS_PCT", "2.0"))
