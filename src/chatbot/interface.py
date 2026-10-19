@@ -529,7 +529,7 @@ class ChatbotInterface:
             lines.append("\nRisk warnings:")
             for v in risk.veto_reasons:
                 lines.append(f"  ⚠  {v}")
-        lines.append("\nAll execution is paper-only by default. Human approval required for live trading.")
+        lines.append("\nAll execution is paper-only. Human approval required for any paper execution; live trading is disabled.")
         return "\n".join(lines)
 
     @staticmethod

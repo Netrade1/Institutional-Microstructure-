@@ -29,7 +29,7 @@ The system will **never** say:
 - *"Citadel is selling this level."*
 - *"A specific hedge fund is accumulating."*
 
-Unless that claim is backed by legal, public, authorised, and verifiable data such as SEC filings or licensed institutional datasets.
+SEC filings support separate statements about manager-reported historical holdings. They never establish which manager submitted an intraday order.
 
 ---
 
@@ -235,3 +235,12 @@ pytest tests/ -v
 This system is a **research tool**. It does not constitute financial advice. Past performance of any signal or model does not guarantee future performance. All behavioural classifications are probabilistic estimates based on observable market data only.
 
 > The mature system behaves like a disciplined institutional research desk with a risk officer beside it — not like a reckless trading bot.
+
+## SEC Form 13F historical holdings research
+
+A separate read-only interface retrieves public SEC filings, preserves amendments and provenance, and reports unresolved security matches. It never feeds named managers into L2 classification or trading decisions. See [the holdings guide](docs/sec13f.md) and [change evidence](docs/sec13f-validation.md).
+
+```bash
+python -m src.holdings --help
+python -m src.holdings --cik 1397076 --accession 0001104659-23-116968 --fixture tests/fixtures/sec13f/authentic.txt --provenance tests/fixtures/sec13f/authentic.provenance.json
+```

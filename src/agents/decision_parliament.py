@@ -8,7 +8,7 @@ Disposition hierarchy:
     risk_veto         → (Risk Governor veto)
     blocked           → (Compliance violation)
     human_review      → (conflicting high-confidence signals)
-    paper_trade_approved → (all clear, sufficient evidence)
+    human_review      → (paper candidate; explicit human approval still required)
     watchlist         → (soft signals, insufficient conviction)
     research_approved → (analysis only, no execution context)
     rejected          → (no actionable signal)
@@ -126,7 +126,7 @@ class DecisionParliament:
                 archetype_report, motivation_report, ipo_report,
             )
 
-        # ── Gate 5: Paper trade approval ─────────────────────────────────────
+        # ── Gate 5: Paper candidate requires human review ─────────────────────────────────────
         dominant_votes = max(bullish_votes, bearish_votes)
         if (
             dominant_votes >= 2
@@ -137,9 +137,9 @@ class DecisionParliament:
         ):
             direction = "bullish" if bullish_votes > bearish_votes else "bearish"
             return self._result(
-                symbol, ts, "paper_trade_approved",
+                symbol, ts, "human_review",
                 f"Multiple agents converge on {direction} view with sufficient confidence. "
-                f"Risk Governor clear. Paper trade approved (no live execution).",
+                f"Risk Governor clear. Paper candidate only; mandatory human approval remains pending. No execution.",
                 ob_report, dna_report, inst_report, risk_report, compliance_report,
                 archetype_report, motivation_report, ipo_report,
             )

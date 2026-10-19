@@ -48,7 +48,7 @@ with st.sidebar:
         "**Execution Mode**\n"
         "🟡 PAPER ONLY  \n"
         "Live execution is disabled by default.  \n"
-        "Human approval required for live trading."
+        "Human approval required for any paper execution; live trading is disabled."
     )
     st.divider()
     st.caption(
