@@ -1,0 +1,22 @@
+name: Smart L2 read-only tests
+on:
+  pull_request:
+    paths:
+      - 'integrations/smart_l2_readonly.py'
+      - 'tests/test_smart_l2_readonly.py'
+      - '.github/workflows/smart-l2-tests.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Compile module
+        run: python -m py_compile integrations/smart_l2_readonly.py
+      - name: Run isolated regression tests
+        run: python -m unittest discover -s tests -p 'test_smart_l2_readonly.py' -v
