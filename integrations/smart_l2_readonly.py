@@ -57,7 +57,7 @@ class ReadOnlyBook:
 
     @staticmethod
     def _validate_book(bids, asks):
-        if not bids or not asks or max(bids) >= min(asks):
+        if not bids or not asks or max(bids) >= min(asks) or bids[max(bids)] + asks[min(asks)] <= 0:
             raise FeedRejected("empty or crossed book")
 
     def ingest(self, event: dict):
@@ -93,7 +93,7 @@ class ReadOnlyBook:
                 self.bids, self.asks = bids, asks
                 self.sequence, self.quote_time_ns = event["seq"], ts
             elif kind == "trade":
-                if not self.healthy or ts < self.quote_time_ns or ts - self.quote_time_ns > self.max_age_ns:
+                if not self.healthy or ts < self.quote_time_ns or ts - self.quote_time_ns > self.max_age_ns or rx - self.quote_time_ns > self.max_age_ns:
                     raise FeedRejected("unsynchronized quote")
                 trade_id = str(event["trade_id"])
                 if trade_id in self.trades:
@@ -117,7 +117,7 @@ class ReadOnlyBook:
             raise FeedRejected(str(exc)) from exc
 
     def metrics(self, now_ns: int):
-        if not self.healthy or self.quote_time_ns is None or now_ns < self.quote_time_ns or now_ns - self.quote_time_ns > self.max_age_ns:
+        if type(now_ns) is not int or not self.healthy or self.quote_time_ns is None or now_ns < self.quote_time_ns or now_ns - self.quote_time_ns > self.max_age_ns:
             return {"status":"NO_DATA", "paper_only":True}
         bid, ask = max(self.bids), min(self.asks)
         bs, az = self.bids[bid], self.asks[ask]
