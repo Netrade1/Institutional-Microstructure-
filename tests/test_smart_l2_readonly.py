@@ -11,7 +11,7 @@ class TestReadOnlyL2(unittest.TestCase):
         b=ReadOnlyBook("SPCX")
         m=b.ingest(snap())
         self.assertEqual(m["status"],"RESEARCH_ONLY")
-        self.assertEqual(m["obi"],str((10-5)/(10+5)) if False else "0.3333333333333333333333333333")
+        self.assertEqual(m["obi"],"0.3333333333333333333333333333")
         self.assertTrue(m["paper_only"])
 
     def test_sequence_gap_fails_closed(self):
@@ -34,6 +34,20 @@ class TestReadOnlyL2(unittest.TestCase):
         with self.assertRaises(FeedRejected):
             b.ingest({"type":"trade","symbol":"SPCX","trade_id":"t1","price":"100.5","size":"1","ts_ns":102,"received_ns":103})
         self.assertEqual(b.metrics(104)["status"],"NO_DATA")
+
+    def test_zero_top_liquidity_rejected(self):
+        b=ReadOnlyBook("SPCX")
+        with self.assertRaises(FeedRejected):
+            b.ingest({"type":"snapshot","symbol":"SPCX","seq":1,"ts_ns":100,"received_ns":101,
+                      "bids":[["100","0"]],"asks":[["101","5"]]})
+
+    def test_receive_time_quote_staleness(self):
+        b=ReadOnlyBook("SPCX",max_age_ns=10)
+        b.ingest(snap())
+        with self.assertRaises(FeedRejected):
+            b.ingest({"type":"trade","symbol":"SPCX","trade_id":"t1","price":"101",
+                      "size":"4","ts_ns":102,"received_ns":120})
+        self.assertEqual(b.metrics(120)["status"],"NO_DATA")
 
     def test_receive_before_event_rejected(self):
         b=ReadOnlyBook("SPCX")
