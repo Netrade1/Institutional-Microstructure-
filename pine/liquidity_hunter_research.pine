@@ -1,0 +1,254 @@
+// This Pine Script® code is subject to the terms of the Mozilla Public License 2.0
+// at https://mozilla.org/MPL/2.0/
+// Original "Liquidity Hunter | Clean Signals" © ReubenMiles.
+// Modified 2026-11-22 for Netrade: causal, evidence-only research detection.
+//
+// Detection only. A BUY/SELL SETUP is an OHLC price-pattern observation.
+// It is NOT trade/tape sweep confirmation, True Delta, a risk decision, or an order.
+// No strategy(), broker route, position sizing, stop, target, or approval exists here.
+//
+// NEW RESEARCH POLICIES, not previously approved personal trading rules:
+//   unique pivots; one emitted candidate per level; no candidate for dual sweeps;
+//   reset on a trading-day change (optional) or missing bar; no age expiry by default.
+// The original strict inequalities and update-before-detection order are preserved.
+// Python/Pine live parity and TradingView compilation have NOT been observed.
+
+//@version=6
+indicator("Netrade Liquidity Hunter | Research Evidence", overlay=true, max_bars_back=500)
+
+string GROUP_DETECTION = "Detection"
+string GROUP_POLICY = "Research policies — not trade approval"
+string GROUP_DISPLAY = "Display and alerts"
+
+int swingLength = input.int(5, "Swing length on each side", minval=2, maxval=100, group=GROUP_DETECTION)
+bool uniquePivots = input.bool(true, "Require a unique pivot extreme", group=GROUP_POLICY,
+     tooltip="Default matches the Python detector's conservative tie policy. Turning this off uses TradingView's native pivot tie behavior; cross-runtime parity is unverified.")
+bool onePerLevel = input.bool(true, "One emitted candidate per pivot level", group=GROUP_POLICY)
+bool resetSession = input.bool(true, "Reset at TradingView trading-day changes", group=GROUP_POLICY,
+     tooltip="Uses time_tradingday. This is a TradingView trading-day boundary, not a verified exchange calendar or an RTH-only session filter. Missing bars always reset detection.")
+int maxAgeBars = input.int(0, "Maximum bars since pivot confirmation (0 = disabled)", minval=0, group=GROUP_POLICY)
+bool showSignals = input.bool(true, "Show candidate and ambiguity labels", group=GROUP_DISPLAY)
+bool showLevels = input.bool(true, "Show remembered levels from confirmation onward", group=GROUP_DISPLAY)
+bool enableAlerts = input.bool(true, "Enable research JSON alerts", group=GROUP_DISPLAY,
+     tooltip="Create a TradingView alert using 'Any alert() function call'. Display visibility is independent. No running alert or order is created by adding this indicator.")
+
+// Evaluate native pivots on every calculation. State changes remain close-only.
+float nativeHigh = ta.pivothigh(high, swingLength, swingLength)
+float nativeLow = ta.pivotlow(low, swingLength, swingLength)
+
+// Only standard, fixed-duration, intraday time bars are supported. Tick/range,
+// synthetic, daily/weekly/monthly and shortened-duration bars are not accepted.
+bool fixedTimeframe = timeframe.isseconds or timeframe.isminutes
+int expectedDurationMs = fixedTimeframe ? int(timeframe.in_seconds() * 1000) : na
+bool supportedChart = chart.is_standard and fixedTimeframe and not na(expectedDurationMs) and expectedDurationMs > 0 and expectedDurationMs < 86400000
+bool validTimes = not na(time) and not na(time_close) and not na(time_tradingday) and time_close > time and time_close - time == expectedDurationMs and (not barstate.isrealtime or time_close <= timenow)
+bool validPrices = not na(open) and not na(high) and not na(low) and not na(close) and low > 0 and high >= low and high >= math.max(open, close) and low <= math.min(open, close)
+bool validBar = supportedChart and validTimes and validPrices
+
+var float lastHigh = na
+var float lastLow = na
+var int highPivotOpenMs = na
+var int lowPivotOpenMs = na
+var int highPivotCloseMs = na
+var int lowPivotCloseMs = na
+var int highConfirmedCloseMs = na
+var int lowConfirmedCloseMs = na
+var int highObservedMs = na
+var int lowObservedMs = na
+var int highConfirmedIndex = na
+var int lowConfirmedIndex = na
+var bool highConsumed = false
+var bool lowConsumed = false
+var int previousAcceptedCloseMs = na
+var int previousTradingDayMs = na
+var int segmentStartIndex = na
+var bool blocked = false
+var string diagnostic = "WARMUP"
+
+// These are per-calculation observations. Unconfirmed bars expose no raw signal.
+bool rawBuy = false
+bool rawSell = false
+bool buyCandidate = false
+bool sellCandidate = false
+bool ambiguous = false
+bool gapReset = false
+bool tradingDayReset = false
+
+f_bool(bool value) =>
+    value ? "true" : "false"
+
+f_int(int value) =>
+    na(value) ? "null" : str.tostring(value)
+
+f_price(float value) =>
+    // Evidence must not be rounded to the display tick: adjusted/subtick OHLC
+    // can participate in strict comparisons. This is still bounded decimal
+    // serialization, not a guaranteed exact round-trip of Pine's binary float.
+    // One mandatory fractional digit keeps whole-number output valid JSON too.
+    na(value) ? "null" : str.tostring(value, "0.0###############")
+
+f_quote(string value) =>
+    string escaped = str.replace_all(value, "\\", "\\\\")
+    escaped := str.replace_all(escaped, "\"", "\\\"")
+    escaped := str.replace_all(escaped, "\n", "\\n")
+    escaped := str.replace_all(escaped, "\r", "\\r")
+    escaped := str.replace_all(escaped, "\t", "\\t")
+    "\"" + escaped + "\""
+
+f_payload(string direction, float level, int pivotOpenMs, int pivotCloseMs, int confirmedCloseMs, int confirmedObservedMs, int confirmedIndex) =>
+    // Historical receipt time is not known. Do not invent availability=bar close.
+    int observedMs = barstate.isrealtime ? timenow : na
+    string sourceScope = syminfo.tickerid + "|" + timeframe.period + "|" + syminfo.session
+    string observationKey = "liquidity-sweep-v1|" + sourceScope + "|" + str.tostring(time_tradingday) + "|" + str.tostring(time_close) + "|" + direction + "|" + str.tostring(pivotOpenMs) + "|" + f_price(level) + "|" + f_price(open) + "|" + f_price(high) + "|" + f_price(low) + "|" + f_price(close) + "|" + str.tostring(swingLength) + "|" + f_bool(uniquePivots) + "|" + f_bool(onePerLevel) + "|" + f_bool(resetSession) + "|" + str.tostring(maxAgeBars)
+    string payload = "{\"schema\":\"netrade.ohlc_sweep_observation.v1\""
+    payload += ",\"observation_key\":" + f_quote(observationKey)
+    payload += ",\"observation_key_is_cryptographic\":false"
+    payload += ",\"source_category\":\"OHLC_PRICE_PATTERN\""
+    payload += ",\"price_serialization\":{\"format\":\"0.0###############\",\"max_fractional_digits\":16,\"rounded_to_mintick\":false,\"exact_float_round_trip\":false,\"limitation\":\"DECIMAL_PRECISION_LIMIT_MAY_CHANGE_SUBPRECISION_COMPARISONS\"}"
+    payload += ",\"provider_authentication\":\"UNVERIFIED_TRADINGVIEW_CHART\""
+    payload += ",\"symbol\":" + f_quote(syminfo.tickerid)
+    payload += ",\"timeframe\":" + f_quote(timeframe.period)
+    payload += ",\"timeframe_ms\":" + f_int(expectedDurationMs)
+    payload += ",\"chart_session\":" + f_quote(syminfo.session)
+    payload += ",\"trading_day_id_ms\":" + f_int(time_tradingday)
+    payload += ",\"direction\":" + f_quote(direction)
+    payload += ",\"raw_buy\":" + f_bool(rawBuy) + ",\"raw_sell\":" + f_bool(rawSell)
+    payload += ",\"signal_open_ms\":" + f_int(time) + ",\"signal_close_ms\":" + f_int(time_close)
+    payload += ",\"signal_observed_ms\":" + f_int(observedMs)
+    payload += ",\"availability_status\":" + f_quote(barstate.isrealtime ? "REALTIME_SCRIPT_OBSERVED" : "HISTORICAL_RECEIVE_TIME_UNAVAILABLE")
+    payload += ",\"candle\":{\"open\":" + f_price(open) + ",\"high\":" + f_price(high) + ",\"low\":" + f_price(low) + ",\"close\":" + f_price(close) + "}"
+    payload += ",\"pivot\":{\"price\":" + f_price(level) + ",\"open_ms\":" + f_int(pivotOpenMs) + ",\"close_ms\":" + f_int(pivotCloseMs)
+    payload += ",\"confirmed_close_ms\":" + f_int(confirmedCloseMs) + ",\"confirmed_observed_ms\":" + f_int(confirmedObservedMs)
+    payload += ",\"age_bars_since_confirmation\":" + str.tostring(bar_index - confirmedIndex) + "}"
+    payload += ",\"policy\":{\"swing_length\":" + str.tostring(swingLength) + ",\"unique_pivots\":" + f_bool(uniquePivots)
+    payload += ",\"one_per_level\":" + f_bool(onePerLevel) + ",\"reset_trading_day\":" + f_bool(resetSession)
+    payload += ",\"reset_on_gap\":true,\"max_age_bars\":" + str.tostring(maxAgeBars) + ",\"dual_signal_action\":\"NO_CANDIDATE\"}"
+    payload += ",\"trade_tape_confirmation\":\"UNAVAILABLE\",\"true_delta_status\":\"UNAVAILABLE\",\"cvd_status\":\"UNAVAILABLE\",\"session_vwap_status\":\"UNAVAILABLE\""
+    payload += ",\"governance\":{\"paper_only\":true,\"live_execution_enabled\":false,\"human_approval_required\":true,\"risk_governor_final_veto\":true,\"model_auto_promotion\":false,\"authority\":\"EVIDENCE_ONLY\",\"decision\":\"NO_TRADE\"}}"
+    payload
+
+if barstate.isconfirmed
+    if not validBar
+        // Invalid closed data latches the indicator blocked. Correct the data or
+        // chart configuration and reload before treating later bars as usable.
+        blocked := true
+        diagnostic := supportedChart ? "INVALID CLOSED BAR — NO CANDIDATE" : "USE STANDARD FIXED INTRADAY TIME BARS"
+        lastHigh := na
+        lastLow := na
+        segmentStartIndex := na
+    else if not blocked
+        bool overlap = not na(previousAcceptedCloseMs) and time < previousAcceptedCloseMs
+        if overlap
+            blocked := true
+            diagnostic := "TIME REGRESSION — NO CANDIDATE"
+            lastHigh := na
+            lastLow := na
+            segmentStartIndex := na
+        else
+            gapReset := not na(previousAcceptedCloseMs) and time != previousAcceptedCloseMs
+            tradingDayReset := resetSession and not na(previousTradingDayMs) and time_tradingday != previousTradingDayMs
+            bool resetSegment = na(segmentStartIndex) or gapReset or tradingDayReset
+            if resetSegment
+                lastHigh := na
+                lastLow := na
+                highPivotOpenMs := na
+                lowPivotOpenMs := na
+                highPivotCloseMs := na
+                lowPivotCloseMs := na
+                highConfirmedCloseMs := na
+                lowConfirmedCloseMs := na
+                highObservedMs := na
+                lowObservedMs := na
+                highConfirmedIndex := na
+                lowConfirmedIndex := na
+                highConsumed := false
+                lowConsumed := false
+                segmentStartIndex := bar_index
+
+            // The full 2L+1 window must belong to this uninterrupted segment.
+            bool warm = bar_index - segmentStartIndex >= 2 * swingLength
+            int highCount = 0
+            int lowCount = 0
+            if warm and uniquePivots
+                for offset = 0 to 2 * swingLength
+                    if high[offset] == high[swingLength]
+                        highCount += 1
+                    if low[offset] == low[swingLength]
+                        lowCount += 1
+
+            bool newHigh = warm and not na(nativeHigh) and (not uniquePivots or highCount == 1)
+            bool newLow = warm and not na(nativeLow) and (not uniquePivots or lowCount == 1)
+
+            // Preserve source ordering: replace levels BEFORE evaluating sweeps.
+            if newHigh
+                lastHigh := nativeHigh
+                highPivotOpenMs := time[swingLength]
+                highPivotCloseMs := time_close[swingLength]
+                highConfirmedCloseMs := time_close
+                highObservedMs := barstate.isrealtime ? timenow : na
+                highConfirmedIndex := bar_index
+                highConsumed := false
+            if newLow
+                lastLow := nativeLow
+                lowPivotOpenMs := time[swingLength]
+                lowPivotCloseMs := time_close[swingLength]
+                lowConfirmedCloseMs := time_close
+                lowObservedMs := barstate.isrealtime ? timenow : na
+                lowConfirmedIndex := bar_index
+                lowConsumed := false
+
+            // Exact source comparisons. Candle color and volume play no role.
+            rawBuy := not na(lastLow) and low < lastLow and close > lastLow
+            rawSell := not na(lastHigh) and high > lastHigh and close < lastHigh
+            ambiguous := rawBuy and rawSell
+            bool lowAgeAllowed = not na(lowConfirmedIndex) and (maxAgeBars == 0 or bar_index - lowConfirmedIndex <= maxAgeBars)
+            bool highAgeAllowed = not na(highConfirmedIndex) and (maxAgeBars == 0 or bar_index - highConfirmedIndex <= maxAgeBars)
+            buyCandidate := rawBuy and not ambiguous and lowAgeAllowed and (not onePerLevel or not lowConsumed)
+            sellCandidate := rawSell and not ambiguous and highAgeAllowed and (not onePerLevel or not highConsumed)
+
+            diagnostic := not warm ? "WARMUP — NO CANDIDATE" : "NO SWEEP"
+            if newHigh or newLow
+                diagnostic := "PIVOT CONFIRMED — RESEARCH ONLY"
+            if rawBuy or rawSell
+                diagnostic := "RAW SWEEP SUPPRESSED — USED OR EXPIRED LEVEL"
+            if ambiguous
+                diagnostic := "AMBIGUOUS DUAL SWEEP — NO CANDIDATE"
+            if buyCandidate
+                diagnostic := "BUY SETUP — EVIDENCE ONLY / NO TRADE"
+                if enableAlerts
+                    alert(f_payload("BUY", lastLow, lowPivotOpenMs, lowPivotCloseMs, lowConfirmedCloseMs, lowObservedMs, lowConfirmedIndex), alert.freq_once_per_bar_close)
+                lowConsumed := true
+            if sellCandidate
+                diagnostic := "SELL SETUP — EVIDENCE ONLY / NO TRADE"
+                if enableAlerts
+                    alert(f_payload("SELL", lastHigh, highPivotOpenMs, highPivotCloseMs, highConfirmedCloseMs, highObservedMs, highConfirmedIndex), alert.freq_once_per_bar_close)
+                highConsumed := true
+
+            previousAcceptedCloseMs := time_close
+            previousTradingDayMs := time_tradingday
+
+// No negative offset: remembered levels first appear at their confirmation bar.
+plot(showLevels and barstate.isconfirmed and not blocked ? lastHigh : na,
+     title="Remembered swing high (known from confirmation)", color=color.orange, style=plot.style_linebr)
+plot(showLevels and barstate.isconfirmed and not blocked ? lastLow : na,
+     title="Remembered swing low (known from confirmation)", color=color.aqua, style=plot.style_linebr)
+plotshape(showSignals and buyCandidate, title="BUY setup", style=shape.labelup,
+     location=location.belowbar, color=color.green, text="BUY SETUP", textcolor=color.white, size=size.small)
+plotshape(showSignals and sellCandidate, title="SELL setup", style=shape.labeldown,
+     location=location.abovebar, color=color.red, text="SELL SETUP", textcolor=color.white, size=size.small)
+plotshape(showSignals and ambiguous, title="Ambiguous dual sweep", style=shape.labeldown,
+     location=location.abovebar, color=color.orange, text="AMBIGUOUS\nNO TRADE", textcolor=color.black, size=size.small)
+
+// Raw flags remain inspectable even when eligibility policies suppress a label.
+plot(rawBuy ? 1 : 0, title="Raw BUY condition", display=display.data_window)
+plot(rawSell ? 1 : 0, title="Raw SELL condition", display=display.data_window)
+plot(ambiguous ? 1 : 0, title="Dual-direction ambiguity", display=display.data_window)
+plot(gapReset ? 1 : 0, title="Missing-bar reset", display=display.data_window)
+plot(tradingDayReset ? 1 : 0, title="Trading-day reset", display=display.data_window)
+plot(blocked ? 1 : 0, title="Blocked on invalid data", display=display.data_window)
+
+var table status = table.new(position.top_right, 1, 2)
+if barstate.islast
+    table.cell(status, 0, 0, "OHLC RESEARCH • PAPER ONLY", text_color=chart.fg_color, bgcolor=color.new(color.gray, 85))
+    string displayDiagnostic = not supportedChart ? "USE STANDARD FIXED INTRADAY TIME BARS" : blocked ? diagnostic : barstate.isconfirmed ? diagnostic : "WAITING FOR CANDLE CLOSE"
+    table.cell(status, 0, 1, displayDiagnostic, text_color=chart.fg_color, bgcolor=color.new(color.gray, 85))
